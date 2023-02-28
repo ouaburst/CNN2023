@@ -13,6 +13,7 @@ from numpy import loadtxt
 gradient_data = loadtxt('data.csv', delimiter=',')
 train_images = mnist.train_images()[:1]
 
+
 testdata=train_images[0]
 
 
@@ -36,7 +37,7 @@ def E(target,out):
     
 pyplot.imshow(testdata)
 
-testy=(testy/ 255) - 0.5
+#testy=(testy/ 255) - 0.5
 Wdelta_cnn=conv2D(testdata,gradient_data,testdata.shape[0],gradient_data.shape[0])
 
 # check with other application that Wdelta_cnn is correct
