@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Feb 28 22:53:05 2023
+Created on Wed Mar  1 21:42:27 2023
 
 @author: Budokan
 """
@@ -63,46 +63,39 @@ def conv2D(image, kernel, stride=(1, 1), padding='valid', pooling=None, pool_siz
     return output
 
 
+# Define the convolutional neural network architecture
+def conv_net(image):
+    # Define the kernel and filter size
+    kernel_size = (5, 5)
+    num_filters = 6
+
+    # First convolutional layer
+    conv1 = conv2D(image, kernel=np.random.randn(*kernel_size, image.shape[-1], num_filters), stride=(1, 1), padding='same', pooling='max', pool_size=(2, 2))
+    
+    # Second convolutional layer
+    conv2 = conv2D(conv1, kernel=np.random.randn(*kernel_size, num_filters, num_filters), stride=(1, 1), padding='same', pooling='max', pool_size=(2, 2))
+
+    # Flatten the output of the second convolutional layer
+    flattened = conv2.flatten()
+
+    return flattened
+
 # Load MNIST dataset
 train_images = mnist.train_images()
 train_labels = mnist.train_labels()
 
-# Define kernel
-kernel = np.array([[1, 0, -1],
-                   [2, 0, -2],
-                   [1, 0, -1]])
+# Normalize the images
+train_images = (train_images / 255.0) - 0.5
 
-# Define sample image
+# Get the first image in the dataset
 image = train_images[0]
 
-# Apply convolution
-output = conv2D(image, kernel, stride=(1, 1), padding='same', pooling='max', pool_size=(2, 2))
+# Pass the image through the convolutional neural network
+output = conv_net(image)
 
-# Print output
-#print(output)
+# Print the output shape
+print(output.shape)
 
-# Plot original image and output
-fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(8, 4))
-ax1.imshow(image, cmap='gray')
-ax1.set_title('Original Image')
-ax2.imshow(output, cmap='gray')
-ax2.set_title('Convolved Image')
+# Plot the image
+plt.imshow(image, cmap='gray')
 plt.show()
-
-'''
-# Define input image and kernel
-image = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
-kernel = np.array([[1, 0], [0, 1], [1, 1]])
-
-# Perform convolution with padding and max pooling
-output = conv2D(image, kernel, stride=(1, 1), padding='same')
-#pooled_output = max_pool2D(output, pool_size=(2, 2))
-
-# Print results
-print("Input image:")
-print(image)
-print("Convolved output:")
-print(output)
-#print("Max-pooled output:")
-#print(pooled_output)
-'''

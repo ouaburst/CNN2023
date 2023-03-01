@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Feb 28 22:53:05 2023
+Created on Wed Mar  1 23:08:31 2023
 
 @author: Budokan
 """
@@ -63,46 +63,80 @@ def conv2D(image, kernel, stride=(1, 1), padding='valid', pooling=None, pool_siz
     return output
 
 
+def conv_net(image):
+    # Define kernels
+    kernel1 = np.array([[1, 1, 1, 1, 1],
+                        [1, 1, 1, 1, 1],
+                        [1, 1, 1, 1, 1],
+                        [1, 1, 1, 1, 1],
+                        [1, 1, 1, 1, 1]])
+
+    kernel2 = np.array([[-1, -1, -1, -1, -1],
+                        [-1, -1, -1, -1, -1],
+                        [-1, -1, -1, -1, -1],
+                        [-1, -1, -1, -1, -1],
+                        [-1, -1, -1, -1, -1]])
+
+    # Apply first convolution and pooling
+    conv1 = conv2D(image, kernel1)
+    pool1 = conv2D(conv1, None, stride=(2, 2), pooling='max')
+
+    # Apply second convolution and pooling
+    conv2 = conv2D(pool1, kernel2)
+    pool2 = conv2D(conv2, None, stride=(2, 2), pooling='max')
+
+    # Flatten output
+    flattened = pool2.reshape(-1)
+
+    return flattened
+
+
+
+
+
+# Load an example image from the MNIST dataset
+train_images = mnist.train_images()
+example_image = train_images[0]
+
+# Apply the convolutional neural network to the example image
+flattened = conv_net(example_image)
+
+# Plot the original image and the flattened output
+fig, ax = plt.subplots(1, 2)
+ax[0].imshow(example_image, cmap='gray')
+ax[0].set_title('Original Image')
+ax[1].plot(flattened)
+ax[1].set_title('Flattened Output')
+plt.show()
+
+'''
+# Define the architecture
+def conv_net(image):
+    # First convolution layer
+    conv1 = conv2D(image, np.ones((5, 5))/25, padding='same', pooling='max', pool_size=(2, 2))
+    # Second convolution layer
+    conv2 = conv2D(conv1, np.ones((5, 5))/25, padding='same', pooling='max', pool_size=(2, 2))
+    # Flatten the output
+    flat = conv2.flatten()
+    return flat
+
 # Load MNIST dataset
 train_images = mnist.train_images()
 train_labels = mnist.train_labels()
 
-# Define kernel
-kernel = np.array([[1, 0, -1],
-                   [2, 0, -2],
-                   [1, 0, -1]])
+# Normalize the images
+train_images = (train_images / 255.0) - 0.5
 
-# Define sample image
+# Get the first image in the dataset
 image = train_images[0]
 
-# Apply convolution
-output = conv2D(image, kernel, stride=(1, 1), padding='same', pooling='max', pool_size=(2, 2))
+# Pass the image through the convolutional neural network
+output = conv_net(image)
 
-# Print output
-#print(output)
+# Print the output shape
+print(output.shape)
 
-# Plot original image and output
-fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(8, 4))
-ax1.imshow(image, cmap='gray')
-ax1.set_title('Original Image')
-ax2.imshow(output, cmap='gray')
-ax2.set_title('Convolved Image')
+# Plot the image
+plt.imshow(image, cmap='gray')
 plt.show()
-
-'''
-# Define input image and kernel
-image = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
-kernel = np.array([[1, 0], [0, 1], [1, 1]])
-
-# Perform convolution with padding and max pooling
-output = conv2D(image, kernel, stride=(1, 1), padding='same')
-#pooled_output = max_pool2D(output, pool_size=(2, 2))
-
-# Print results
-print("Input image:")
-print(image)
-print("Convolved output:")
-print(output)
-#print("Max-pooled output:")
-#print(pooled_output)
 '''
