@@ -23,6 +23,7 @@ def conv2D(X,w,matrix_size,w_size):
         for j in range(matrix_size-w_size+1):
             temp[i,j]=sum(sum(X[i:i+w_size,j:j+w_size]*w))
     return temp        
+
 def L(target,out):
     padding=np.zeros((out.shape[0]+2,out.shape[0]+2))
     DLerror=-(target-out)

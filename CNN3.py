@@ -72,6 +72,8 @@ kernel = np.array([[1, 0, -1],
                    [2, 0, -2],
                    [1, 0, -1]])
 
+print("++++++++++ ",len(kernel.shape))
+
 # Define sample image
 image = train_images[0]
 

@@ -64,36 +64,40 @@ def conv2D(image, kernel, stride=(1, 1), padding='valid', pooling=None, pool_siz
 
 
 def conv_net(image):
-    # Define kernels
-    kernel1 = np.array([[1, 1, 1, 1, 1],
-                        [1, 1, 1, 1, 1],
-                        [1, 1, 1, 1, 1],
-                        [1, 1, 1, 1, 1],
-                        [1, 1, 1, 1, 1]])
+    # Define the kernels
+    kernel1 = np.random.rand(5, 5)
+    kernel2 = np.random.rand(5, 5)
 
-    kernel2 = np.array([[-1, -1, -1, -1, -1],
-                        [-1, -1, -1, -1, -1],
-                        [-1, -1, -1, -1, -1],
-                        [-1, -1, -1, -1, -1],
-                        [-1, -1, -1, -1, -1]])
+    # Perform the first convolution
+    conv1 = conv2D(image, kernel1, padding='same', pooling='max', pool_size=(2, 2))
+    
+    # Perform the second convolution
+    conv2 = conv2D(conv1, kernel2, padding='same', pooling='max', pool_size=(2, 2))
+    
+    # Flatten the output
+    output = conv2.flatten()
 
-    # Apply first convolution and pooling
-    conv1 = conv2D(image, kernel1)
-    pool1 = conv2D(conv1, None, stride=(2, 2), pooling='max')
-
-    # Apply second convolution and pooling
-    conv2 = conv2D(pool1, kernel2)
-    pool2 = conv2D(conv2, None, stride=(2, 2), pooling='max')
-
-    # Flatten output
-    flattened = pool2.reshape(-1)
-
-    return flattened
+    return output
 
 
+# Load the MNIST dataset
+train_images = mnist.train_images()
+image = train_images[0]
+
+# Apply the conv_net function to the image
+output = conv_net(image)
+
+# Plot the original image and the output of the convolutional network
+fig, ax = plt.subplots(nrows=1, ncols=2)
+ax[0].imshow(image, cmap='gray')
+ax[0].set_title('Input Image')
+ax[1].plot(output)
+ax[1].set_title('Convolutional Network Output')
+plt.show()
 
 
 
+'''
 # Load an example image from the MNIST dataset
 train_images = mnist.train_images()
 example_image = train_images[0]
@@ -108,6 +112,8 @@ ax[0].set_title('Original Image')
 ax[1].plot(flattened)
 ax[1].set_title('Flattened Output')
 plt.show()
+'''
+
 
 '''
 # Define the architecture

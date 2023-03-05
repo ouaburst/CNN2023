@@ -52,13 +52,15 @@ def conv2D(image, kernel, stride=(1, 1), padding='valid', pooling=None, pool_siz
 
     # Apply pooling if required
     if pooling:
-        pool_out_h = int(out_h / pool_size[0])
-        pool_out_w = int(out_w / pool_size[1])
+        pool_out_h = int(np.ceil(out_h / pool_size[0]))
+        pool_out_w = int(np.ceil(out_w / pool_size[1]))
         pool_output = np.zeros((pool_out_h, pool_out_w))
         for i in range(0, out_h, pool_size[0]):
             for j in range(0, out_w, pool_size[1]):
-                pool_output[int(i/pool_size[0]), int(j/pool_size[1])] = np.max(output[i:i+pool_size[0], j:j+pool_size[1]])
-        output = pool_output
+                pool_window = output[i:i+pool_size[0], j:j+pool_size[1]]
+                pool_output[int(i/pool_size[0]), int(j/pool_size[1])] = np.max(pool_window[:min(pool_size[0], pool_window.shape[0]), :min(pool_size[1], pool_window.shape[1])])
+    output = pool_output
+
 
     return output
 
@@ -67,18 +69,22 @@ def conv2D(image, kernel, stride=(1, 1), padding='valid', pooling=None, pool_siz
 def conv_net(image):
     # Define the kernel and filter size
     kernel_size = (5, 5)
-    num_filters = 6
-
-    # First convolutional layer
-    conv1 = conv2D(image, kernel=np.random.randn(*kernel_size, image.shape[-1], num_filters), stride=(1, 1), padding='same', pooling='max', pool_size=(2, 2))
     
-    # Second convolutional layer
-    conv2 = conv2D(conv1, kernel=np.random.randn(*kernel_size, num_filters, num_filters), stride=(1, 1), padding='same', pooling='max', pool_size=(2, 2))
+    # Create six different kernels
+    kernels = [np.random.randn(*kernel_size) for _ in range(6)]
+
+    # First convolutional layer with six filters
+    conv1 = [conv2D(image, kernel, stride=(1, 1), padding='same', pooling='max', pool_size=(2, 2)) for kernel in kernels]
+    
+    # Second convolutional layer with six filters
+    conv2 = [conv2D(conv, kernel, stride=(1, 1), padding='same', pooling='max', pool_size=(2, 2)) for kernel, conv in zip(kernels, conv1)]
 
     # Flatten the output of the second convolutional layer
-    flattened = conv2.flatten()
+    flattened = np.concatenate(conv2).flatten()
 
     return flattened
+
+
 
 # Load MNIST dataset
 train_images = mnist.train_images()
