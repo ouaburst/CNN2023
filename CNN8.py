@@ -2,7 +2,7 @@
 """
 Created on Wed Mar  1 21:42:27 2023
 
-@author: Budokan
+@author: Oualid Burström
 """
 
 import numpy as np
