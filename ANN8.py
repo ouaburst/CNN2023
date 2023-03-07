@@ -96,6 +96,10 @@ num_epochs = 1000
 
 hidden_w = np.random.randn(5, nr_labels) - 0.5
 
+# initialize empty lists for training and test errors
+train_errors = []
+test_errors = []
+
 # training loop
 for epoch in range(num_epochs):
     # perform forward propagation on training data
@@ -116,6 +120,12 @@ for epoch in range(num_epochs):
     hidden_w += learning_rate * dweight2
     input_w += learning_rate * dweight1
     
+    # calculate training and test error and append to lists
+    train_error = error
+    _, test_output = forward_pass(hidden_w, forward_pass(input_w, X_test, b1)[1], b2)
+    test_error = np.mean(np.abs(y_test_onehot - test_output))
+    train_errors.append(train_error)
+    test_errors.append(test_error)       
 
     if epoch % 100 == 0:
         print("Epoch: %d, Error: %f" % (epoch, error))
@@ -127,3 +137,11 @@ output_input, output = forward_pass(hidden_w, hidden_output, b2)
 # calculate error on test data
 test_error = np.mean(np.abs(y_test_onehot - output))
 print("Test Error: %f" % test_error)
+
+# plot the training and test error
+plt.plot(train_errors, label='Training error')
+plt.plot(test_errors, label='Test error')
+plt.legend()
+plt.xlabel('Epoch')
+plt.ylabel('Error')
+plt.show()
