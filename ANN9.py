@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Mar  7 21:38:48 2023
+Created on Tue Mar  7 20:32:02 2023
 
-@author: Budokan
+@author: Oualid Burström
 """
 
 import numpy as np
@@ -10,70 +10,6 @@ import matplotlib.pyplot as plt
 from PIL import Image
 from matplotlib import pyplot
 import os
-
-def conv2D(image, kernel, stride=(1, 1), padding='valid', pooling=None, pool_size=(2, 2)):
-
-    # Check input dimensions
-    assert len(image.shape) in [2, 3], "Input image must be 2D or 3D array"
-    assert len(kernel.shape) == 2, "Kernel must be a 2D array"
-    assert isinstance(stride, tuple) and len(stride) == 2, "Stride must be a tuple of two integers"
-    if pooling:
-        assert pooling == 'max', "Pooling must be 'max'"
-
-    # Add padding if required
-    if padding == 'same':
-        pad_h = int(((image.shape[0]-1)*stride[0]+kernel.shape[0]-image.shape[0])/2)
-        pad_w = int(((image.shape[1]-1)*stride[1]+kernel.shape[1]-image.shape[1])/2)
-        image = np.pad(image, ((pad_h, pad_h), (pad_w, pad_w)), mode='constant')
-    elif padding != 'valid':
-        raise ValueError("Padding must be either 'valid' or 'same'")
-
-    # Compute output shape
-    out_h = int((image.shape[0]-kernel.shape[0])/stride[0] + 1)
-    out_w = int((image.shape[1]-kernel.shape[1])/stride[1] + 1)
-    output = np.zeros((out_h, out_w))
-
-    # Perform convolution
-    for i in range(0, image.shape[0]-kernel.shape[0]+1, stride[0]):
-        for j in range(0, image.shape[1]-kernel.shape[1]+1, stride[1]):
-            output[int(i/stride[0]), int(j/stride[1])] = np.sum(image[i:i+kernel.shape[0], j:j+kernel.shape[1]] * kernel)
-
-    # Apply pooling if required
-    if pooling:
-        pool_out_h = int(np.ceil(out_h / pool_size[0]))
-        pool_out_w = int(np.ceil(out_w / pool_size[1]))
-        pool_output = np.zeros((pool_out_h, pool_out_w))
-        for i in range(0, out_h, pool_size[0]):
-            for j in range(0, out_w, pool_size[1]):
-                pool_window = output[i:i+pool_size[0], j:j+pool_size[1]]
-                pool_output[int(i/pool_size[0]), int(j/pool_size[1])] = np.max(pool_window[:min(pool_size[0], pool_window.shape[0]), :min(pool_size[1], pool_window.shape[1])])
-    output = pool_output
-
-    return output
-
-
-# Define the convolutional neural network architecture
-def conv_net(image):
-    # Define the kernel and filter size
-    kernel_size = (5, 5)
-    
-    # Create six different kernels
-    #kernels = [np.random.randn(*kernel_size) for _ in range(6)]
-    kernels = [np.clip(np.random.randn(*kernel_size),-0.5, 0.5) for _ in range(6)]
-    
-
-    # First convolutional layer with six filters
-    conv1 = [conv2D(image, kernel, stride=(1, 1), padding='valid', pooling='max', pool_size=(2, 2)) for kernel in kernels]
-    
-    # Second convolutional layer with six filters
-    conv2 = [conv2D(conv, kernel, stride=(1, 1), padding='valid', pooling='max', pool_size=(2, 2)) for kernel, conv in zip(kernels, conv1)]
-
-    # Flatten the output of the second convolutional layer
-    flattened = np.concatenate(conv2).flatten()
-
-    return flattened
-
-
 
 def normalise(X):
     mean = np.mean(X)
@@ -117,19 +53,19 @@ def load_mnist():
 
     return (X_train, y_train), (X_test, y_test)
 
-def sigmoid(z):
-    return 1.0 / (1.0 + np.exp(-z))
+def relu(z):
+    return np.maximum(z, 0)
 
-def sigmoid_derivative(z):
-    return sigmoid(z) * (1.0 - sigmoid(z))
+def relu_derivative(z):
+    return (z > 0).astype(float)
 
 def forward_pass(weight1, input, b1):
     Z = np.matmul(input, weight1) + b1
-    return Z, sigmoid(Z)
+    return Z, relu(Z)
 
 def backward_init(target, out, hout, hidden_w):
     dEtot_dout_o = -(target - out)
-    dout_o_dnet = sigmoid_derivative(out)
+    dout_o_dnet = relu_derivative(out)
     dnet_dw = hout
     delta0 = dEtot_dout_o * dout_o_dnet
     diff = np.matmul(dnet_dw.T, delta0)
@@ -165,22 +101,22 @@ train_errors = []
 test_errors = []
 
 # training loop
+
 for epoch in range(num_epochs):
     # perform forward propagation on training data
     hidden_input, hidden_output = forward_pass(input_w, X_train, b1)
     output_input, output = forward_pass(hidden_w, hidden_output, b2)
-
     # calculate error and update Etot
     error = np.mean(np.abs(y_train_onehot - output))
     Etot += error
-
+    
     # perform backpropagation to update weights and biases
-    delta1 = np.multiply((y_train_onehot - output), sigmoid_derivative(output))
+    delta1 = np.multiply((y_train_onehot - output), relu_derivative(output))
     dweight2 = np.matmul(hidden_output.T, delta1)
     dhidden_output = np.matmul(delta1, hidden_w.T)
-    delta0 = np.multiply(dhidden_output, sigmoid_derivative(hidden_output))
+    delta0 = np.multiply(dhidden_output, relu_derivative(hidden_output))
     dweight1 = np.matmul(X_train.T, delta0)
-
+    
     hidden_w += learning_rate * dweight2
     input_w += learning_rate * dweight1
     
@@ -190,7 +126,7 @@ for epoch in range(num_epochs):
     test_error = np.mean(np.abs(y_test_onehot - test_output))
     train_errors.append(train_error)
     test_errors.append(test_error)       
-
+    
     if epoch % 100 == 0:
         print("Epoch: %d, Error: %f" % (epoch, error))
 
@@ -209,4 +145,3 @@ plt.legend()
 plt.xlabel('Epoch')
 plt.ylabel('Error')
 plt.show()
-

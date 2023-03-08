@@ -99,12 +99,71 @@ train_images = (train_images / 255.0) - 0.5
 image = train_images[0]
 
 # Pass the image through the convolutional neural network
-output = conv_net(image)
+#output = conv_net(image)
 
+'''
 # Print the output shape
 print(output.shape)
 
 # Plot the image
 plt.imshow(image, cmap='gray')
 plt.show()
+'''
 
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
+
+def relu(x):
+    return np.maximum(0, x)
+
+def softmax(x):
+    exp_x = np.exp(x - np.max(x, axis=-1, keepdims=True))
+    return exp_x / np.sum(exp_x, axis=-1, keepdims=True)
+
+# Define the simple artificial neural network
+def simple_ann(input_data):
+    # Define the weights and biases for the network
+    w1 = np.random.randn(input_data.shape[0], 64)
+    b1 = np.zeros((1, 64))
+    w2 = np.random.randn(64, 32)
+    b2 = np.zeros((1, 32))
+    w3 = np.random.randn(32, 128)
+    b3 = np.zeros((1, 128))
+    w4 = np.random.randn(128, 10)
+    b4 = np.zeros((1, 10))
+
+    # Feed the input through the network
+    z1 = np.dot(input_data, w1) + b1
+    a1 = np.tanh(z1)
+    z2 = np.dot(a1, w2) + b2
+    a2 = np.tanh(z2)
+    z3 = np.dot(a2, w3) + b3
+    a3 = np.tanh(z3)
+    z4 = np.dot(a3, w4) + b4
+    output = softmax(z4)
+
+    return output
+
+
+# Load MNIST dataset
+test_images = mnist.test_images()
+test_labels = mnist.test_labels()
+
+# Normalize the images
+test_images = (test_images / 255.0) - 0.5
+
+# Get the first image in the test dataset
+test_image = test_images[0]
+
+# Pass the test image through the CNN
+cnn_output = conv_net(test_image)
+
+# Pass the CNN output through the simple ANN
+ann_output = simple_ann(cnn_output)
+
+# Get the predicted class label
+predicted_label = np.argmax(ann_output)
+
+# Print the predicted label and the true label
+print("Predicted label:", predicted_label)
+print("True label:", test_labels[0])
