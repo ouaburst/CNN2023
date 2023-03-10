@@ -98,12 +98,21 @@ input_size = 784  # 28x28
 hidden_size = 128
 output_size = 10
 
+'''
 # Define the activation function (ReLU) and its derivative
 def relu(x):
     return np.maximum(0, x)
 
 def relu_derivative(x):
     return np.where(x > 0, 1, 0)
+'''
+
+# Define the activation function (sigmoid) and its derivative
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
+
+def sigmoid_derivative(x):
+    return sigmoid(x) * (1 - sigmoid(x))
 
 # Initialize the weights and biases randomly
 w1 = np.random.randn(input_size, hidden_size)
@@ -126,7 +135,8 @@ train_accuracy = []
 for epoch in range(num_epochs):
     # Forward pass
     z1 = np.dot(train_images, w1) + b1
-    a1 = relu(z1)
+    #a1 = relu(z1)
+    a1 = sigmoid(z1)
     z2 = np.dot(a1, w2) + b2
     output = np.exp(z2) / np.sum(np.exp(z2), axis=1, keepdims=True)
 
@@ -141,7 +151,8 @@ for epoch in range(num_epochs):
     dw2 = np.dot(a1.T, dz2) / len(train_labels)
     db2 = np.sum(dz2, axis=0) / len(train_labels)
     da1 = np.dot(dz2, w2.T)
-    dz1 = da1 * relu_derivative(z1)
+    #dz1 = da1 * relu_derivative(z1)
+    dz1 = da1 * sigmoid_derivative(z1)
     dw1 = np.dot(train_images.T, dz1) / len(train_labels)
     db1 = np.sum(dz1, axis=0) / len(train_labels)
 
@@ -161,7 +172,8 @@ for epoch in range(num_epochs):
 
 # Evaluate the network on the test set
 z1 = np.dot(test_images, w1) + b1
-a1 = relu(z1)
+#a1 = relu(z1)
+a1 = sigmoid(z1)
 z2 = np.dot(a1, w2) + b2
 output = np.exp(z2) / np.sum(np.exp(z2), axis=1, keepdims=True)
 predicted_labels = np.argmax(output, axis=1)
@@ -173,7 +185,8 @@ num_correct = 0
 for i in range(len(test_images)):
     # Forward pass
     z1 = np.dot(test_images[i], w1) + b1
-    a1 = relu(z1)
+    #a1 = relu(z1)
+    a1 = sigmoid(z1)
     z2 = np.dot(a1, w2) + b2
     output = np.exp(z2) / np.sum(np.exp(z2))
 
@@ -205,4 +218,5 @@ plt.xlabel("Epoch")
 plt.ylabel("Accuracy")
 plt.title("Training Accuracy")
 plt.show()
+
 
