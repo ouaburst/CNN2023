@@ -64,76 +64,6 @@ def conv_net(image):
 
     return flattened
 
-import numpy as np
-
-# Define the sigmoid activation function
-def sigmoid(x):
-    return 1 / (1 + np.exp(-x))
-
-# Define the derivative of the sigmoid activation function
-def sigmoid_derivative(x):
-    return x * (1 - x)
-
-# Define the neural network architecture
-class NeuralNetwork:
-    def __init__(self, input_size, hidden_size, output_size):
-        self.input_size = input_size
-        self.hidden_size = hidden_size
-        self.output_size = output_size
-
-        # Initialize the weights and biases for the hidden layer and output layer
-        self.weights1 = np.random.randn(self.input_size, self.hidden_size)
-        self.bias1 = np.zeros((1, self.hidden_size))
-        self.weights2 = np.random.randn(self.hidden_size, self.output_size)
-        self.bias2 = np.zeros((1, self.output_size))
-
-    # Forward pass through the neural network
-    def forward(self, x):
-        # Compute the output of the hidden layer
-        self.hidden_output = sigmoid(np.dot(x, self.weights1) + self.bias1)
-
-        # Compute the output of the output layer
-        self.output = sigmoid(np.dot(self.hidden_output, self.weights2) + self.bias2)
-
-        return self.output
-
-    # Backward pass through the neural network
-    def backward(self, x, y, output):
-        # Compute the error in the output layer
-        error = y - output
-
-        # Compute the derivative of the error with respect to the output layer weights and biases
-        d_weights2 = np.dot(self.hidden_output.T, error * sigmoid_derivative(output))
-        d_bias2 = np.sum(error * sigmoid_derivative(output), axis=0, keepdims=True)
-
-        # Compute the derivative of the error with respect to the hidden layer weights and biases
-        d_weights1 = np.dot(x.T, np.dot(error * sigmoid_derivative(output), self.weights2.T) * sigmoid_derivative(self.hidden_output))
-        d_bias1 = np.sum(np.dot(error * sigmoid_derivative(output), self.weights2.T) * sigmoid_derivative(self.hidden_output), axis=0, keepdims=True)
-
-        # Update the weights and biases using the gradients
-        self.weights2 += d_weights2
-        self.bias2 += d_bias2
-        self.weights1 += d_weights1
-        self.bias1 += d_bias1
-
-    # Train the neural network using backpropagation
-    def train(self, x, y, epochs):
-        for epoch in range(epochs):
-            # Forward pass through the neural network
-            output = self.forward(x)
-
-            # Backward pass through the neural network
-            self.backward(x, y, output)
-
-    # Predict the class label for a given input
-    def predict(self, x):
-        # Forward pass through the neural network
-        output = self.forward(x)
-
-        # Convert the output to a class label
-        class_label = np.argmax(output)
-
-        return class_label
 
 # Load the MNIST dataset
 train_images = mnist.train_images()
@@ -141,45 +71,121 @@ train_labels = mnist.train_labels()
 test_images = mnist.test_images()
 test_labels = mnist.test_labels()
 
+# Flatten the input images
+train_images = train_images.reshape(-1, 784)
+test_images = test_images.reshape(-1, 784)
+
 # Preprocess the data
-train_images = train_images.astype('float32') / 255.0
-test_images = test_images.astype('float32') / 255.0
-train_images = train_images.reshape(-1, 28, 28)
-test_images = test_images.reshape(-1, 28, 28)
+train_images = train_images / 255.0
+test_images = test_images / 255.0
 
-
-# Flatten the output of the CNN for use as input to the ANN
-train_features = np.array([conv_net(image).flatten() for image in train_images])
-test_features = np.array([conv_net(image).flatten() for image in test_images])
-
-# Define the input, hidden, and output sizes for the ANN
-input_size = train_features.shape[1]
-hidden_size = 32
+# Define the network architecture
+input_size = 784  # 28x28
+hidden_size = 128
 output_size = 10
 
-# Instantiate the neural network
-nn = NeuralNetwork(input_size, hidden_size, output_size)
+# Define the activation function (ReLU) and its derivative
+def relu(x):
+    return np.maximum(0, x)
 
-# Train the neural network
-nn.train(train_features, train_labels, epochs=10)
+def relu_derivative(x):
+    return np.where(x > 0, 1, 0)
 
-# Evaluate the neural network on the test set
-correct = 0
+# Initialize the weights and biases randomly
+w1 = np.random.randn(input_size, hidden_size)
+b1 = np.random.randn(hidden_size)
+w2 = np.random.randn(hidden_size, output_size)
+b2 = np.random.randn(output_size)
+
+# Define the hyperparameters
+learning_rate = 0.1
+num_epochs = 50
+
+# Initialize lists to store the loss and accuracy for each epoch
+train_loss = []
+train_accuracy = []
+
+# Train the network
+for epoch in range(num_epochs):
+    # Forward pass
+    z1 = np.dot(train_images, w1) + b1
+    a1 = relu(z1)
+    z2 = np.dot(a1, w2) + b2
+    output = np.exp(z2) / np.sum(np.exp(z2), axis=1, keepdims=True)
+
+    # Compute the loss and accuracy
+    loss = -np.sum(np.log(output[range(len(train_labels)), train_labels])) / len(train_labels)
+    predicted_labels = np.argmax(output, axis=1)
+    accuracy = np.mean(predicted_labels == train_labels)
+
+    # Backward pass
+    dz2 = output
+    dz2[range(len(train_labels)), train_labels] -= 1
+    dw2 = np.dot(a1.T, dz2) / len(train_labels)
+    db2 = np.sum(dz2, axis=0) / len(train_labels)
+    da1 = np.dot(dz2, w2.T)
+    dz1 = da1 * relu_derivative(z1)
+    dw1 = np.dot(train_images.T, dz1) / len(train_labels)
+    db1 = np.sum(dz1, axis=0) / len(train_labels)
+
+    # Update the weights and biases
+    w2 -= learning_rate * dw2
+    b2 -= learning_rate * db2
+    w1 -= learning_rate * dw1
+    b1 -= learning_rate * db1
+    
+    # Append the loss and accuracy to the lists
+    train_loss.append(loss)
+    train_accuracy.append(accuracy)    
+
+    # Print the loss and accuracy every 10 epochs
+    if epoch % 10 == 0:
+        print("Epoch {}/{} - loss: {:.4f} - accuracy: {:.4f}".format(epoch+1, num_epochs, loss, accuracy))
+
+# Evaluate the network on the test set
+z1 = np.dot(test_images, w1) + b1
+a1 = relu(z1)
+z2 = np.dot(a1, w2) + b2
+output = np.exp(z2) / np.sum(np.exp(z2), axis=1, keepdims=True)
+predicted_labels = np.argmax(output, axis=1)
+accuracy = np.mean(predicted_labels == test_labels)
+print("Test accuracy: {:.4f}".format(accuracy))
+
+# Evaluate the network on the test set
+num_correct = 0
 for i in range(len(test_images)):
-    # Compute the predicted label for the current test image
-    predicted_label = nn.predict(test_features[i])
+    # Forward pass
+    z1 = np.dot(test_images[i], w1) + b1
+    a1 = relu(z1)
+    z2 = np.dot(a1, w2) + b2
+    output = np.exp(z2) / np.sum(np.exp(z2))
 
-    # Compute the true label for the current test image
+    # Compute the predicted label and check if it's correct
+    predicted_label = np.argmax(output)
     true_label = test_labels[i]
-
-    # Print the predicted label and the true label
-    print("Predicted label:", predicted_label)
-    print("True label:", true_label)
-
-    # Update the number of correctly classified test images
     if predicted_label == true_label:
-        correct += 1
+        num_correct += 1
 
-# Compute the accuracy on the test set
-accuracy = correct / len(test_images)
-print("Test set accuracy:", accuracy)
+    # Print the predicted label and true label
+    print("Image {} - predicted label: {}, true label: {}".format(i+1, predicted_label, true_label))
+
+# Print the overall accuracy
+accuracy = num_correct / len(test_images)
+print("Test accuracy: {:.4f}".format(accuracy))
+
+# Plot the training loss
+plt.figure(figsize=(6, 4))
+plt.plot(train_loss)
+plt.xlabel("Epoch")
+plt.ylabel("Loss")
+plt.title("Training Loss")
+plt.show()
+
+# Plot the training accuracy
+plt.figure(figsize=(6, 4))
+plt.plot(train_accuracy)
+plt.xlabel("Epoch")
+plt.ylabel("Accuracy")
+plt.title("Training Accuracy")
+plt.show()
+
