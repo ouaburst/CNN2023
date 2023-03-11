@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-Created on Wed Mar  10 22:44:27 2023
+Created on Sat Mar 11 22:05:24 2023
 
-@author: Oualid Burström
+@author: Budokan
 """
+
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -98,6 +99,7 @@ input_size = 784  # 28x28
 hidden_size = 128
 output_size = 10
 
+
 # Define the activation function (ReLU) and its derivative
 def relu(x):
     return np.maximum(0, x)
@@ -105,30 +107,48 @@ def relu(x):
 def relu_derivative(x):
     return np.where(x > 0, 1, 0)
 
-'''
+
 # Define the activation function (sigmoid) and its derivative
 def sigmoid(x):
     return 1 / (1 + np.exp(-x))
 
 def sigmoid_derivative(x):
     return sigmoid(x) * (1 - sigmoid(x))
+
+# Define the network architecture
+input_size = 784  # 28x28
+hidden_size1 = 128
+hidden_size2 = 64
+output_size = 10
+
+# Initialize the weights and biases using Xavier initialization when using ReLU
+w1 = np.random.randn(input_size, hidden_size) * np.sqrt(2 / (input_size + hidden_size))
+b1 = np.zeros(hidden_size)
+w2 = np.random.randn(hidden_size, hidden_size) * np.sqrt(2 / (hidden_size + hidden_size))
+b2 = np.zeros(hidden_size)
+w3 = np.random.randn(hidden_size, output_size) * np.sqrt(2 / (hidden_size + output_size))
+b3 = np.zeros(output_size)
+
+'''
+# Initialize the weights and biases randomly when using sigmoid
+w1 = np.random.randn(input_size, hidden_size1)
+b1 = np.random.randn(hidden_size1)
+w2 = np.random.randn(hidden_size1, hidden_size2)
+b2 = np.random.randn(hidden_size2)
+w3 = np.random.randn(hidden_size2, output_size)
+b3 = np.random.randn(output_size)
 '''
 
-# Initialize the weights and biases randomly
-w1 = np.random.randn(input_size, hidden_size)
-b1 = np.random.randn(hidden_size)
-w2 = np.random.randn(hidden_size, output_size)
-b2 = np.random.randn(output_size)
-
 # Define the hyperparameters
-learning_rate = 0.1
+#learning_rate = 0.6 # sigmoid
+learning_rate = 0.1 # ReLU
 num_epochs = 50
 
 # Initialize lists to store the loss and accuracy for each epoch
 train_loss = []
 train_accuracy = []
 
-# Trains a neural network with two layers (one hidden layer and one output layer)
+# Trains a neural network with three layers (one input layer, one hidden layer, and one output layer)
 # Uses stochastic gradient descent with backpropagation to update the weights and biases
 # Computes the loss and accuracy for each epoch and appends them to lists for plotting
 # Prints the loss and accuracy every 10 epochs
@@ -138,7 +158,10 @@ for epoch in range(num_epochs):
     a1 = relu(z1)
     #a1 = sigmoid(z1)
     z2 = np.dot(a1, w2) + b2
-    output = np.exp(z2) / np.sum(np.exp(z2), axis=1, keepdims=True)
+    a2 = relu(z2)
+    #a2 = sigmoid(z2)
+    z3 = np.dot(a2, w3) + b3
+    output = np.exp(z3) / np.sum(np.exp(z3), axis=1, keepdims=True)
 
     # Compute the loss and accuracy
     loss = -np.sum(np.log(output[range(len(train_labels)), train_labels])) / len(train_labels)
@@ -146,8 +169,13 @@ for epoch in range(num_epochs):
     accuracy = np.mean(predicted_labels == train_labels)
 
     # Backward pass
-    dz2 = output
-    dz2[range(len(train_labels)), train_labels] -= 1
+    dz3 = output
+    dz3[range(len(train_labels)), train_labels] -= 1
+    dw3 = np.dot(a2.T, dz3) / len(train_labels)
+    db3 = np.sum(dz3, axis=0) / len(train_labels)
+    da2 = np.dot(dz3, w3.T)
+    dz2 = da2 * relu_derivative(z2)
+    #dz2 = da2 * sigmoid_derivative(z2)
     dw2 = np.dot(a1.T, dz2) / len(train_labels)
     db2 = np.sum(dz2, axis=0) / len(train_labels)
     da1 = np.dot(dz2, w2.T)
@@ -157,6 +185,8 @@ for epoch in range(num_epochs):
     db1 = np.sum(dz1, axis=0) / len(train_labels)
 
     # Update the weights and biases
+    w3 -= learning_rate * dw3
+    b3 -= learning_rate * db3
     w2 -= learning_rate * dw2
     b2 -= learning_rate * db2
     w1 -= learning_rate * dw1
@@ -175,10 +205,14 @@ z1 = np.dot(test_images, w1) + b1
 a1 = relu(z1)
 #a1 = sigmoid(z1)
 z2 = np.dot(a1, w2) + b2
-output = np.exp(z2) / np.sum(np.exp(z2), axis=1, keepdims=True)
+a2 = relu(z2)
+#a2 = sigmoid(z2)
+z3 = np.dot(a2, w3) + b3
+output = np.exp(z3) / np.sum(np.exp(z3), axis=1, keepdims=True)
 predicted_labels = np.argmax(output, axis=1)
 accuracy = np.mean(predicted_labels == test_labels)
 print("Test accuracy: {:.4f}".format(accuracy))
+
 
 # Evaluate the network on the test set
 num_correct = 0
@@ -188,7 +222,10 @@ for i in range(len(test_images)):
     a1 = relu(z1)
     #a1 = sigmoid(z1)
     z2 = np.dot(a1, w2) + b2
-    output = np.exp(z2) / np.sum(np.exp(z2))
+    a2 = relu(z2)
+    #a2 = sigmoid(z2)
+    z3 = np.dot(a2, w3) + b3
+    output = np.exp(z3) / np.sum(np.exp(z3))
 
     # Compute the predicted label and check if it's correct
     predicted_label = np.argmax(output)
@@ -218,5 +255,3 @@ plt.xlabel("Epoch")
 plt.ylabel("Accuracy")
 plt.title("Training Accuracy")
 plt.show()
-
-
