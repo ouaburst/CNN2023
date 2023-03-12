@@ -94,11 +94,6 @@ test_images = test_images.reshape(-1, 784)
 train_images = train_images / 255.0
 test_images = test_images / 255.0
 
-# Define the network architecture
-input_size = 784  # 28x28
-hidden_size = 128
-output_size = 10
-
 
 # Define the activation function (ReLU) and its derivative
 def relu(x):
@@ -117,9 +112,11 @@ def sigmoid_derivative(x):
 
 # Define the network architecture
 input_size = 784  # 28x28
+hidden_size = 128
 hidden_size1 = 128
 hidden_size2 = 64
 output_size = 10
+
 
 # Initialize the weights and biases using Xavier initialization when using ReLU
 w1 = np.random.randn(input_size, hidden_size) * np.sqrt(2 / (input_size + hidden_size))
@@ -140,7 +137,8 @@ b3 = np.random.randn(output_size)
 '''
 
 # Define the hyperparameters
-#learning_rate = 0.6 # sigmoid
+# Use ReLU or sigmoid
+#learning_rate = 1.0 # sigmoid
 learning_rate = 0.1 # ReLU
 num_epochs = 50
 
@@ -239,6 +237,7 @@ for i in range(len(test_images)):
 # Print the overall accuracy
 accuracy = num_correct / len(test_images)
 print("Test accuracy: {:.4f}".format(accuracy))
+
 
 # Plot the training loss
 plt.figure(figsize=(6, 4))
