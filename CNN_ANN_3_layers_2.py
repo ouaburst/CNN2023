@@ -80,19 +80,26 @@ def conv_net(image):
 
     return flattened
 
-# Load the MNIST dataset
-train_images = mnist.train_images()
-train_labels = mnist.train_labels()
-test_images = mnist.test_images()
-test_labels = mnist.test_labels()
+num_train_samples = 10000  # Set the desired number of training samples
+num_test_samples = 5000    # Set the desired number of testing samples
+
+# Load the MNIST dataset and limit the number of samples for train and test
+train_images = mnist.train_images()[:num_train_samples]
+train_labels = mnist.train_labels()[:num_train_samples]
+test_images = mnist.test_images()[:num_test_samples]
+test_labels = mnist.test_labels()[:num_test_samples]
 
 # Flatten the input images
-train_images = train_images.reshape(-1, 784)
-test_images = test_images.reshape(-1, 784)
+#train_images = train_images.reshape(-1, 784)
+#test_images = test_images.reshape(-1, 784)
 
 # Preprocess the data
 train_images = train_images / 255.0
 test_images = test_images / 255.0
+
+# Extract features from the input images using the conv_net function
+train_features = np.array([conv_net(img) for img in train_images.reshape(-1, 28, 28)])
+test_features = np.array([conv_net(img) for img in test_images.reshape(-1, 28, 28)])
 
 
 # Define the activation function (ReLU) and its derivative
@@ -110,8 +117,12 @@ def sigmoid(x):
 def sigmoid_derivative(x):
     return sigmoid(x) * (1 - sigmoid(x))
 
+
+
 # Define the network architecture
-input_size = 784  # 28x28
+#input_size = 784  # 28x28
+#input_size = train_features.shape[1]
+input_size = 96 # The output size of conv_net function (6x16)
 hidden_size = 128
 hidden_size1 = 128
 hidden_size2 = 64
@@ -139,7 +150,7 @@ b3 = np.random.randn(output_size)
 # Define the hyperparameters
 # Use ReLU or sigmoid
 #learning_rate = 1.0 # sigmoid
-learning_rate = 0.1 # ReLU
+learning_rate = 0.05 # ReLU
 num_epochs = 50
 
 # Initialize lists to store the loss and accuracy for each epoch
@@ -152,7 +163,8 @@ train_accuracy = []
 # Prints the loss and accuracy every 10 epochs
 for epoch in range(num_epochs):
     # Forward pass
-    z1 = np.dot(train_images, w1) + b1
+    #z1 = np.dot(train_images, w1) + b1
+    z1 = np.dot(train_features, w1) + b1
     a1 = relu(z1)
     #a1 = sigmoid(z1)
     z2 = np.dot(a1, w2) + b2
@@ -179,7 +191,8 @@ for epoch in range(num_epochs):
     da1 = np.dot(dz2, w2.T)
     dz1 = da1 * relu_derivative(z1)
     #dz1 = da1 * sigmoid_derivative(z1)
-    dw1 = np.dot(train_images.T, dz1) / len(train_labels)
+    #dw1 = np.dot(train_images.T, dz1) / len(train_labels)
+    dw1 = np.dot(train_features.T, dz1) / len(train_labels)
     db1 = np.sum(dz1, axis=0) / len(train_labels)
 
     # Update the weights and biases
@@ -199,7 +212,8 @@ for epoch in range(num_epochs):
         print("Epoch {}/{} - loss: {:.4f} - accuracy: {:.4f}".format(epoch+1, num_epochs, loss, accuracy))
 
 # Evaluate the network on the test set
-z1 = np.dot(test_images, w1) + b1
+#z1 = np.dot(test_images, w1) + b1
+z1 = np.dot(test_features, w1) + b1
 a1 = relu(z1)
 #a1 = sigmoid(z1)
 z2 = np.dot(a1, w2) + b2
@@ -212,11 +226,14 @@ accuracy = np.mean(predicted_labels == test_labels)
 print("Test accuracy: {:.4f}".format(accuracy))
 
 
+'''
 # Evaluate the network on the test set
 num_correct = 0
 for i in range(len(test_images)):
     # Forward pass
-    z1 = np.dot(test_images[i], w1) + b1
+    #z1 = np.dot(test_images[i], w1) + b1
+    test_features = conv_net(test_images[i])
+    z1 = np.dot(test_features, w1) + b1
     a1 = relu(z1)
     #a1 = sigmoid(z1)
     z2 = np.dot(a1, w2) + b2
@@ -237,7 +254,7 @@ for i in range(len(test_images)):
 # Print the overall accuracy
 accuracy = num_correct / len(test_images)
 print("Test accuracy: {:.4f}".format(accuracy))
-
+'''
 
 # Plot the training loss
 plt.figure(figsize=(6, 4))

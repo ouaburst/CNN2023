@@ -80,19 +80,26 @@ def conv_net(image):
 
     return flattened
 
-# Load the MNIST dataset
-train_images = mnist.train_images()
-train_labels = mnist.train_labels()
-test_images = mnist.test_images()
-test_labels = mnist.test_labels()
+num_train_samples = 1000  # Set the desired number of training samples
+num_test_samples = 500    # Set the desired number of testing samples
+
+# Load the MNIST dataset and limit the number of samples for train and test
+train_images = mnist.train_images()[:num_train_samples]
+train_labels = mnist.train_labels()[:num_train_samples]
+test_images = mnist.test_images()[:num_test_samples]
+test_labels = mnist.test_labels()[:num_test_samples]
 
 # Flatten the input images
-train_images = train_images.reshape(-1, 784)
-test_images = test_images.reshape(-1, 784)
+#train_images = train_images.reshape(-1, 784)
+#test_images = test_images.reshape(-1, 784)
 
 # Preprocess the data
 train_images = train_images / 255.0
 test_images = test_images / 255.0
+
+# Apply conv_net to the train and test images
+train_images = np.array([conv_net(img) for img in train_images])
+test_images = np.array([conv_net(img) for img in test_images])
 
 
 # Define the activation function (ReLU) and its derivative
@@ -110,22 +117,31 @@ def sigmoid(x):
 def sigmoid_derivative(x):
     return sigmoid(x) * (1 - sigmoid(x))
 
-# Define the network architecture
-input_size = 784  # 28x28
+input_size = train_images.shape[1]  # The output size of conv_net function
 hidden_size = 128
-hidden_size1 = 128
-hidden_size2 = 64
 output_size = 10
 
 
-# Initialize the weights and biases using Xavier initialization when using ReLU
-w1 = np.random.randn(input_size, hidden_size) * np.sqrt(2 / (input_size + hidden_size))
-b1 = np.zeros(hidden_size)
-w2 = np.random.randn(hidden_size, hidden_size) * np.sqrt(2 / (hidden_size + hidden_size))
-b2 = np.zeros(hidden_size)
-w3 = np.random.randn(hidden_size, output_size) * np.sqrt(2 / (hidden_size + output_size))
-b3 = np.zeros(output_size)
+# Define the network architecture
+#input_size = 784  # 28x28
+#hidden_size = 128
+hidden_size1 = 128
+hidden_size2 = 64
+#output_size = 10
 
+hidden_layer_1 = 128
+hidden_layer_2 = 64
+
+# Initialize the weights and biases using Xavier initialization when using ReLU
+# Initialization of weights and biases
+w1 = np.random.randn(input_size, hidden_layer_1) * np.sqrt(2 / input_size)
+b1 = np.zeros((1, hidden_layer_1))
+
+w2 = np.random.randn(hidden_layer_1, hidden_layer_2) * np.sqrt(2 / hidden_layer_1)
+b2 = np.zeros((1, hidden_layer_2))
+
+w3 = np.random.randn(hidden_layer_2, output_size) * np.sqrt(2 / hidden_layer_2)
+b3 = np.zeros((1, output_size))
 '''
 # Initialize the weights and biases randomly when using sigmoid
 w1 = np.random.randn(input_size, hidden_size1)
