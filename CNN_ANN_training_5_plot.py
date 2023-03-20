@@ -143,21 +143,7 @@ for epoch in range(epochs):
         biases[2] -= learning_rate * np.sum(d_output, axis=0, keepdims=True)
         weights[1] -= learning_rate * np.dot(input_layer.T, d_hidden)
         biases[1] -= learning_rate * np.sum(d_hidden, axis=0, keepdims=True)
-
-        # Compute the gradients for the convolutional filters
-        d_hidden = d_hidden.reshape(1, 1, hidden_size)
-        d_cnn_output = np.repeat(np.repeat(d_hidden, 13, axis=1), 13, axis=2)
-        for j, conv_filter in enumerate(conv_filters):
-            d_kernel = np.rot90(conv_filter, 2)
-            d_conv_filter = np.zeros_like(conv_filter)
-            for y in range(0, d_cnn_output.shape[1]):
-                for x in range(0, d_cnn_output.shape[2]):
-                    img_region = image[y * 2 : y * 2 + 5, x * 2 : x * 2 + 5]
-                    d_conv_filter += img_region * d_cnn_output[j, y, x]
-            conv_filter -= learning_rate * d_conv_filter
-        biases[0] -= learning_rate * np.sum(d_cnn_output, axis=(1, 2)).reshape(1, -1)
-
-
+        weights[0] -= learning_rate * np.dot(cnn_output.reshape(-1, 1), d_input)
         # Print the loss for every 1000th sample
         if i % 1000 == 0:
             print(f"Epoch: {epoch + 1}, Sample: {i}, Loss: {loss}")
