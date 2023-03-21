@@ -148,7 +148,8 @@ for epoch in range(epochs):
                     img_region = image[y * pool_stride : y * pool_stride + conv_filter.shape[0], x * pool_stride : x * pool_stride + conv_filter.shape[1]]
                     d_filter += np.sum(d_input.reshape(-1, 6, 12, 12) * img_region, axis=(0, 2, 3))
             d_conv_filters.append(d_filter)
-      
+
+        
         # Update the weights and biases using backpropagation and the Adam optimizer
         weights[2] -= learning_rate * np.dot(hidden_layer.T, d_output)
         biases[2] -= learning_rate * np.sum(d_output, axis=0, keepdims=True)
