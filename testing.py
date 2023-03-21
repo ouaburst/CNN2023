@@ -62,8 +62,8 @@ def max_pooling(image, pool_size, stride):
 # Define the CNN
 def cnn(image, conv_filters, pool_size, pool_stride):
     # Apply the convolution and max pooling operations on the image using the specified filters
-    feature_maps = [convolution(image, conv_filter, 2) for conv_filter in conv_filters]
-    pooled_maps = [max_pooling(feature_map, 3, 2) for feature_map in feature_maps]
+    feature_maps = [convolution(image, conv_filter, 1) for conv_filter in conv_filters]
+    pooled_maps = [max_pooling(feature_map, pool_size, pool_stride) for feature_map in feature_maps]
     # Flatten the resulting feature maps into a 1D vector
     output = np.concatenate([pooled_map.flatten() for pooled_map in pooled_maps])
     return output
@@ -92,7 +92,7 @@ conv_filters = [np.random.randn(5, 5) * 0.01 for _ in range(6)]
 pool_size = 2
 pool_stride = 2
 
-input_size = 6 * 25  # 6 filters * (5x5) pooled feature maps
+input_size = 6 * 144  # 6 filters * (12x12) pooled feature maps
 hidden_size = 64
 output_size = 10
 
@@ -129,7 +129,7 @@ for epoch in range(epochs):
         one_hot_label = np.zeros((1, output_size))
         one_hot_label[0, label] = 1
 
-        # Calculate loss and gradients
+        # Calculate loss and gradients for the ANN
         loss = -np.sum(one_hot_label * np.log(ann_output))
         epoch_losses.append(loss)
         pred_label = np.argmax(ann_output, axis=1)
@@ -137,27 +137,27 @@ for epoch in range(epochs):
         d_output = ann_output - one_hot_label
         d_hidden = np.dot(d_output, weights[2].T) * (hidden_layer > 0)
         d_input = np.dot(d_hidden, weights[1].T)
+       
+        # Calculate gradients for the conv_filters
 
+        d_conv_filters = []
+        for conv_filter in conv_filters:
+            d_filter = np.zeros_like(conv_filter)
+            for y in range(0, output_size):
+                for x in range(0, output_size):
+                    img_region = image[y * pool_stride : y * pool_stride + conv_filter.shape[0], x * pool_stride : x * pool_stride + conv_filter.shape[1]]
+                    d_filter += np.sum(d_input.reshape(-1, 6, 12, 12) * img_region, axis=(0, 2, 3))
+            d_conv_filters.append(d_filter)
+      
         # Update the weights and biases using backpropagation and the Adam optimizer
         weights[2] -= learning_rate * np.dot(hidden_layer.T, d_output)
         biases[2] -= learning_rate * np.sum(d_output, axis=0, keepdims=True)
         weights[1] -= learning_rate * np.dot(input_layer.T, d_hidden)
         biases[1] -= learning_rate * np.sum(d_hidden, axis=0, keepdims=True)
-
-        # Compute the gradients for the convolutional filters
-        d_hidden = d_hidden.reshape(1, 1, hidden_size)
-        d_cnn_output = np.repeat(np.repeat(d_hidden, 13, axis=1), 13, axis=2)
-        for j, conv_filter in enumerate(conv_filters):
-            d_kernel = np.rot90(conv_filter, 2)
-            d_conv_filter = np.zeros_like(conv_filter)
-            for y in range(0, d_cnn_output.shape[1]):
-                for x in range(0, d_cnn_output.shape[2]):
-                    img_region = image[y * 2 : y * 2 + 5, x * 2 : x * 2 + 5]
-                    d_conv_filter += img_region * d_cnn_output[j, y, x]
-            conv_filter -= learning_rate * d_conv_filter
-        biases[0] -= learning_rate * np.sum(d_cnn_output, axis=(1, 2)).reshape(1, -1)
-
-
+        weights[0] -= learning_rate * np.dot(cnn_output.reshape(-1, 1), d_input)
+        biases[0] -= learning_rate * np.sum(d_input, axis=0, keepdims=True)
+        conv_filters = [conv_filter - learning_rate * (d_filter / num_train_samples) for conv_filter, d_filter in zip(conv_filters, d_conv_filters)]
+             
         # Print the loss for every 1000th sample
         if i % 1000 == 0:
             print(f"Epoch: {epoch + 1}, Sample: {i}, Loss: {loss}")
