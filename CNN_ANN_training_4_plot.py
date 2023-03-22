@@ -144,6 +144,7 @@ for epoch in range(epochs):
         weights[1] -= learning_rate * np.dot(input_layer.T, d_hidden)
         biases[1] -= learning_rate * np.sum(d_hidden, axis=0, keepdims=True)
         weights[0] -= learning_rate * np.dot(cnn_output.reshape(-1, 1), d_input)
+        
         # Print the loss for every 1000th sample
         if i % 1000 == 0:
             print(f"Epoch: {epoch + 1}, Sample: {i}, Loss: {loss}")
