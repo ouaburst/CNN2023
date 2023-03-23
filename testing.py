@@ -61,15 +61,21 @@ def max_pooling(image, pool_size, stride):
 # Define the CNN
 def cnn(image, conv_filters_1, conv_filters_2, pool_size, pool_stride):
     # Apply the first convolution and max pooling operations on the image using the specified filters
-    feature_maps_1 = [convolution(image, conv_filter, 1) for conv_filter in conv_filters_1]
+    feature_maps_1 = [convolution(image, conv_filter, 1, padding=2) for conv_filter in conv_filters_1]
     pooled_maps_1 = [max_pooling(feature_map, pool_size, pool_stride) for feature_map in feature_maps_1]
+    
+    print("Pooled maps 1 shape:", pooled_maps_1[0].shape)
 
     # Apply the second convolution and max pooling operations on the pooled_maps_1 using the specified filters
-    feature_maps_2 = [convolution(pooled_map, conv_filter, 1) for pooled_map, conv_filter in zip(pooled_maps_1, conv_filters_2)]
+    feature_maps_2 = [convolution(pooled_map, conv_filter, 1, padding=0) for pooled_map, conv_filter in zip(pooled_maps_1, conv_filters_2)]
     pooled_maps_2 = [max_pooling(feature_map, pool_size, pool_stride) for feature_map in feature_maps_2]
 
+    print("Pooled maps 2 shape:", pooled_maps_2[0].shape)
+    
     # Flatten the resulting feature maps into a 1D vector
     output = np.concatenate([pooled_map.flatten() for pooled_map in pooled_maps_2])
+    
+    print("output:", output.shape)
     
     return output, feature_maps_1, pooled_maps_1, feature_maps_2, pooled_maps_2
 
@@ -87,7 +93,7 @@ def softmax(x):
 def ann(input_data, weights, biases):
     # Calculate the output of the input layer
     input_layer = np.dot(input_data, weights[0]) + biases[0]
-   # Calculate the output of the hidden layer with ReLU activation function
+    # Calculate the output of the hidden layer with ReLU activation function
     hidden_layer = relu(np.dot(input_layer, weights[1]) + biases[1])
     # Calculate the output of the output layer with softmax activation function
     output_layer = softmax(np.dot(hidden_layer, weights[2]) + biases[2])
@@ -98,10 +104,9 @@ conv_filters_2 = [np.random.randn(5, 5) * 0.01 for _ in range(6)]
 pool_size = 2
 pool_stride = 2
 
-input_size = 4 * 4 * 6  # (4x4) pooled feature maps * 6 filters
-
-
-hidden_size = 64
+#input_size = 5 * 5 * 6  # (5x5) pooled feature maps * 6 filters
+input_size = 60
+hidden_size = 40
 output_size = 10
 
 weights = [
@@ -167,17 +172,19 @@ for epoch in range(epochs):
         epoch_corrects += int(pred_label == label)        
         d_output = ann_output - one_hot_label
         d_hidden = np.dot(d_output, weights[2].T) * (hidden_layer > 0)
-        d_input = np.dot(d_hidden, weights[1].T)
-
+        d_input = np.dot(d_hidden, weights[1].T)       
+              
         # Update the weights and biases using backpropagation and the Adam optimizer
         weights[2] -= learning_rate * np.dot(hidden_layer.T, d_output)
         biases[2] -= learning_rate * np.sum(d_output, axis=0, keepdims=True)
         weights[1] -= learning_rate * np.dot(input_layer.T, d_hidden)
         biases[1] -= learning_rate * np.sum(d_hidden, axis=0, keepdims=True)
         weights[0] -= learning_rate * np.dot(cnn_output.reshape(-1, 1), d_input)
+               
+        print("d_input: ", d_input.shape)
         
         # Backpropagate through the CNN
-        d_cnn_output = d_input.reshape(-1, 4, 4, 6)
+        d_cnn_output = d_input.reshape(-1, 5, 5, 6)
         d_feature_maps_2 = [max_pooling_backward(d_cnn_output[:, :, :, i], feature_maps_2[i], pool_size, pool_stride) for i in range(6)]
         d_conv_filters_2 = [np.zeros_like(conv_filters_2[i]) for i in range(6)]
         d_pooled_maps_1 = [np.zeros_like(pooled_maps_1[i]) for i in range(6)]
