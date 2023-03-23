@@ -70,7 +70,8 @@ def cnn(image, conv_filters_1, conv_filters_2, pool_size, pool_stride):
 
     # Flatten the resulting feature maps into a 1D vector
     output = np.concatenate([pooled_map.flatten() for pooled_map in pooled_maps_2])
-    return output
+    
+    return output, feature_maps_1, pooled_maps_1, feature_maps_2, pooled_maps_2
 
 
 # Define the ReLU activation function
@@ -129,7 +130,7 @@ for epoch in range(epochs):
     
     for i, (image, label) in enumerate(zip(train_images, train_labels)):
         # Apply the CNN and ANN on the input image
-        cnn_output = cnn(image, conv_filters_1, conv_filters_2, pool_size, pool_stride)
+        cnn_output, feature_maps_1, pooled_maps_1, feature_maps_2, pooled_maps_2 = cnn(image, conv_filters_1, conv_filters_2, pool_size, pool_stride)
         input_layer, hidden_layer, ann_output = ann(cnn_output.reshape(1, -1), weights, biases)
 
         # One-hot encode the label
