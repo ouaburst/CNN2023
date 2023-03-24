@@ -104,10 +104,14 @@ conv_filters_2 = [np.random.randn(5, 5) * 0.01 for _ in range(6)]
 pool_size = 2
 pool_stride = 2
 
-#input_size = 5 * 5 * 6  # (5x5) pooled feature maps * 6 filters
-input_size = 60
+input_size = 5 * 5 * 6  # (5x5) pooled feature maps * 6 filters
 hidden_size = 40
 output_size = 10
+
+# Fully connected layer
+cnn_output_size = 150
+ann_input_size = 60
+fc_layer_size = 60
 
 weights = [
     np.random.randn(input_size, hidden_size) * 0.01,
@@ -120,6 +124,10 @@ biases = [
     np.zeros((1, hidden_size)),
     np.zeros((1, output_size)),
 ]
+
+# Initialize the weights and biases for the fully connected layer
+fc_weights = np.random.randn(cnn_output_size, fc_layer_size) * 0.01
+fc_biases = np.zeros((1, fc_layer_size))
 
 def convolution_backward(d_output, image, kernel, stride):
     kernel_size = kernel.shape[0]
@@ -159,6 +167,10 @@ for epoch in range(epochs):
     for i, (image, label) in enumerate(zip(train_images, train_labels)):
         # Apply the CNN and ANN on the input image
         cnn_output, feature_maps_1, pooled_maps_1, feature_maps_2, pooled_maps_2 = cnn(image, conv_filters_1, conv_filters_2, pool_size, pool_stride)
+        
+        # Pass the CNN output through the fully connected layer
+        fc_output = np.dot(cnn_output.reshape(1, -1), fc_weights) + fc_biases
+        
         input_layer, hidden_layer, ann_output = ann(cnn_output.reshape(1, -1), weights, biases)
 
         # One-hot encode the label
@@ -181,6 +193,11 @@ for epoch in range(epochs):
         biases[1] -= learning_rate * np.sum(d_hidden, axis=0, keepdims=True)
         weights[0] -= learning_rate * np.dot(cnn_output.reshape(-1, 1), d_input)
                
+        # Add this code to calculate the gradients for the fully connected layer
+        d_fc_output = np.dot(d_input, fc_weights.T)
+        fc_weights -= learning_rate * np.dot(cnn_output.reshape(-1, 1), d_fc_output)
+        fc_biases -= learning_rate * np.sum(d_fc_output, axis=0, keepdims=True)
+        
         print("d_input: ", d_input.shape)
         
         # Backpropagate through the CNN
