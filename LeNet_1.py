@@ -125,6 +125,37 @@ def forward_propagation(X, filters1, filters2, weights1, weights2, weights3):
     probs = softmax(logits)
     return conv1, relu1, pool1, conv2, relu2, pool2, flattened, fc1, relu3, fc2, relu4, logits, probs
 
+def conv_backward(d_output, X, filters, stride=1, padding=0):
+    (batch_size, _, input_height, input_width) = X.shape
+    (num_filters, channels, filter_height, filter_width) = filters.shape
+
+    d_filters = np.zeros(filters.shape)
+    d_X = np.zeros(X.shape)
+
+    for b in range(batch_size):
+        for f in range(num_filters):
+            for i in range(0, input_height - filter_height + 1, stride):
+                for j in range(0, input_width - filter_width + 1, stride):
+                    d_filters[f] += d_output[b, f, i, j] * X[b, :, i:i + filter_height, j:j + filter_width]
+                    d_X[b, :, i:i + filter_height, j:j + filter_width] += d_output[b, f, i, j] * filters[f]
+
+    return d_X, d_filters
+
+def max_pool_backward(d_output, X, pool_size=2, stride=2):
+    (batch_size, channels, input_height, input_width) = X.shape
+
+    d_X = np.zeros(X.shape)
+
+    for b in range(batch_size):
+        for c in range(channels):
+            for i in range(0, input_height - pool_size + 1, stride):
+                for j in range(0, input_width - pool_size + 1, stride):
+                    window = X[b, c, i:i + pool_size, j:j + pool_size]
+                    max_idx = np.unravel_index(np.argmax(window), window.shape)
+                    d_X[b, c, i + max_idx[0], j + max_idx[1]] = d_output[b, c, i // stride, j // stride]
+
+    return d_X
+
 def train(X, y, filters1, filters2, weights1, weights2, weights3, epochs, batch_size, learning_rate):
     y_encoded = one_hot_encoding(y, 10)
 
@@ -149,13 +180,23 @@ def train(X, y, filters1, filters2, weights1, weights2, weights3, epochs, batch_
             d_relu3 = np.dot(d_fc2, weights2)
             d_fc1 = d_relu3 * relu_derivative(fc1)
             d_weights1 = np.dot(d_fc1.T, flattened)
-            
-            # Update weights
+            d_flattened = np.dot(d_fc1, weights1)
+            d_pool2 = d_flattened.reshape(pool2.shape)
+            d_relu2 = max_pool_backward(d_pool2, relu2)
+            d_conv2 = d_relu2 * relu_derivative(conv2)
+            d_pool1, d_filters2 = conv_backward(d_conv2, pool1, filters2)
+            d_relu1 = max_pool_backward(d_pool1, relu1)
+            d_conv1 = d_relu1 * relu_derivative(conv1)
+            _, d_filters1 = conv_backward(d_conv1, X_batch, filters1)
+
+            # Update weights and filters
+            filters1 -= learning_rate * d_filters1
+            filters2 -= learning_rate * d_filters2
             weights1 -= learning_rate * d_weights1
             weights2 -= learning_rate * d_weights2
             weights3 -= learning_rate * d_weights3
 
-    return filters1, filters2, weights1, weights2, weights3
+    return filters1, filters2, weights1, weights2, weights3            
             
 filters1, filters2, weights1, weights2, weights3 = initialize_filters_and_weights()
 train_images = train_images.reshape(-1, 1, 28, 28)
