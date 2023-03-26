@@ -87,6 +87,7 @@ def max_pool(X, pool_size=2, stride=2):
 
     return output
 
+
 def fully_connected(X, W):
     return np.dot(X, W.T)
 
@@ -156,6 +157,55 @@ def max_pool_backward(d_output, X, pool_size=2, stride=2):
 
     return d_X
 
+def ann_forward(X, W1, b1, W2, b2):
+    Z1 = np.dot(X, W1.T) + b1
+    A1 = relu(Z1)
+    Z2 = np.dot(A1, W2.T) + b2
+    A2 = softmax(Z2)
+    return Z1, A1, Z2, A2
+
+def train_ann(X, y, epochs, batch_size, learning_rate):
+    input_size = X.shape[1]
+    hidden_size = 128
+    num_classes = 10
+    
+    W1 = np.random.randn(hidden_size, input_size) * np.sqrt(2 / input_size)
+    b1 = np.zeros((1, hidden_size))
+    W2 = np.random.randn(num_classes, hidden_size) * np.sqrt(2 / hidden_size)
+    b2 = np.zeros((1, num_classes))
+
+    y_encoded = one_hot_encoding(y, num_classes)
+
+    for epoch in range(epochs):
+        for i in range(0, X.shape[0], batch_size):
+            X_batch = X[i:i + batch_size]
+            y_batch = y_encoded[i:i + batch_size]
+
+            # Forward propagation
+            Z1, A1, Z2, A2 = ann_forward(X_batch, W1, b1, W2, b2)
+
+            # Compute loss
+            loss = cross_entropy_loss(y_batch, A2)
+            print("ANN Epoch: {}/{} - Loss: {:.4f}".format(epoch + 1, epochs, loss))
+
+            # Backpropagation
+            d_Z2 = A2 - y_batch
+            d_W2 = np.dot(d_Z2.T, A1)
+            d_b2 = np.sum(d_Z2, axis=0, keepdims=True)
+            d_A1 = np.dot(d_Z2, W2)
+            d_Z1 = d_A1 * relu_derivative(Z1)
+            d_W1 = np.dot(d_Z1.T, X_batch)
+            d_b1 = np.sum(d_Z1, axis=0, keepdims=True)
+
+            # Update weights and biases
+            W1 -= learning_rate * d_W1
+            b1 -= learning_rate * d_b1
+            W2 -= learning_rate * d_W2
+            b2 -= learning_rate * d_b2
+
+    return W1, b1, W2, b2
+
+
 def train(X, y, filters1, filters2, weights1, weights2, weights3, epochs, batch_size, learning_rate):
     y_encoded = one_hot_encoding(y, 10)
 
@@ -196,7 +246,10 @@ def train(X, y, filters1, filters2, weights1, weights2, weights3, epochs, batch_
             weights2 -= learning_rate * d_weights2
             weights3 -= learning_rate * d_weights3
 
-    return filters1, filters2, weights1, weights2, weights3            
+            cnn_output_train = np.vstack([flattened for _, _, _, _, _, _, flattened, _, _, _, _, _, _ in [forward_propagation(X[i:i + batch_size], filters1, filters2, weights1, weights2, weights3)] for i in range(0, X.shape[0], batch_size)])
+            cnn_output_test = np.vstack([flattened for _, _, _, _, _, _, flattened, _, _, _, _, _, _ in [forward_propagation(test_images, filters1, filters2, weights1, weights2, weights3)]])
+
+    return filters1, filters2, weights1, weights2, weights3, cnn_output_train, cnn_output_test
             
 filters1, filters2, weights1, weights2, weights3 = initialize_filters_and_weights()
 train_images = train_images.reshape(-1, 1, 28, 28)
@@ -206,7 +259,20 @@ epochs = 10
 batch_size = 32
 learning_rate = 0.005
 
-filters1, filters2, weights1, weights2, weights3 = train(train_images, train_labels, filters1, filters2, weights1, weights2, weights3, epochs, batch_size, learning_rate)
+filters1, filters2, weights1, weights2, weights3, cnn_output_train, cnn_output_test = train(train_images, train_labels, filters1, filters2, weights1, weights2, weights3, epochs, batch_size, learning_rate)
+
+ann_epochs = 10
+ann_batch_size = 32
+ann_learning_rate = 0.005
+
+ann_epochs = 10
+ann_batch_size = 32
+ann_learning_rate = 0.005
+
+W1, b1, W2, b2 = train_ann(cnn_output_train, train_labels, ann_epochs, ann_batch_size, ann_learning_rate)
+
+
+#filters1, filters2, weights1, weights2, weights3 = train(train_images, train_labels, filters1, filters2, weights1, weights2, weights3, epochs, batch_size, learning_rate)
 
 _, _, _, _, _, _, _, _, _, _, _, _, test_probs = forward_propagation(test_images, filters1, filters2, weights1, weights2, weights3)
 test_preds = np.argmax(test_probs, axis=1)
