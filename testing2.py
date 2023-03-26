@@ -61,7 +61,7 @@ def max_pooling(image, pool_size, stride):
 # Define the CNN
 def cnn(image, conv_filters_1, conv_filters_2, pool_size, pool_stride):
     # Apply the first convolution and max pooling operations on the image using the specified filters
-    feature_maps_1 = [convolution(image, conv_filter, 1, padding=0) for conv_filter in conv_filters_1]
+    feature_maps_1 = [convolution(image, conv_filter, 1, padding=5) for conv_filter in conv_filters_1]
     pooled_maps_1 = [max_pooling(feature_map, pool_size, pool_stride) for feature_map in feature_maps_1]
     
     print("Shape of pooled_maps_1:", pooled_maps_1[0].shape)
@@ -202,18 +202,8 @@ for epoch in range(epochs):
 
         
         # Backpropagate through the CNN
-        d_cnn_output = d_fc_output.reshape(-1, 6, 5, 5)
-        
-        print("Shape of d_cnn_output:", d_cnn_output.shape)
-        print("Shape of pooled_maps_2:", pooled_maps_2[0].shape)
-        
-        print(f"feature_maps_2 shape: {[fm.shape for fm in feature_maps_2]}")
-        print(f"d_cnn_output shape: {d_cnn_output.shape}")
-        
-        d_feature_maps_2 = [max_pooling_backward(d_cnn_output[:, :, i], feature_maps_2[i], pool_size, pool_stride) for i in range(5)]
-
-        print(f"d_feature_maps_2 shape: {[dfm.shape for dfm in d_feature_maps_2]}")
-        
+        d_cnn_output = d_fc_output.reshape(-1, 6, 5, 5)             
+        d_feature_maps_2 = [max_pooling_backward(d_cnn_output[:, :, i], feature_maps_2[i], pool_size, pool_stride) for i in range(5)]        
         d_conv_filters_2 = [np.zeros_like(conv_filters_2[i]) for i in range(6)]
         d_pooled_maps_1 = [np.zeros_like(pooled_maps_1[i]) for i in range(6)]
         
