@@ -259,15 +259,11 @@ epochs = 10
 batch_size = 32
 learning_rate = 0.005
 
+ann_epochs = 10
+ann_batch_size = 32
+ann_learning_rate = 0.005
+
 filters1, filters2, weights1, weights2, weights3, cnn_output_train, cnn_output_test = train(train_images, train_labels, filters1, filters2, weights1, weights2, weights3, epochs, batch_size, learning_rate)
-
-ann_epochs = 10
-ann_batch_size = 32
-ann_learning_rate = 0.005
-
-ann_epochs = 10
-ann_batch_size = 32
-ann_learning_rate = 0.005
 
 W1, b1, W2, b2 = train_ann(cnn_output_train, train_labels, ann_epochs, ann_batch_size, ann_learning_rate)
 
