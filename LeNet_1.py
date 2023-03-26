@@ -38,7 +38,7 @@ def initialize_filters_and_weights():
     filter_shape2 = (16, 6, 5, 5)
 
     # Weight shapes for fully connected layers: (output nodes, input nodes)
-    weight_shape1 = (120, 400)
+    weight_shape1 = (120, 256)
     weight_shape2 = (84, 120)
     weight_shape3 = (10, 84)
 
