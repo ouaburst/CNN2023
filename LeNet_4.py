@@ -28,8 +28,12 @@ x_test = x_test[:num_test_samples]
 y_test = y_test[:num_test_samples]
 
 # Normalize pixel values
-x_train = x_train.astype('float32') / 255.0
-x_test = x_test.astype('float32') / 255.0
+#x_train = x_train.astype('float32') / 255.0
+#x_test = x_test.astype('float32') / 255.0
+
+x_train = x_train.reshape(-1, 28, 28, 1).astype('float32') / 255.0
+x_test = x_test.reshape(-1, 28, 28, 1).astype('float32') / 255.0
+
 
 # Convert labels to categorical format
 y_train = np.eye(10)[y_train.astype('int32')]
@@ -106,6 +110,39 @@ class Layer:
     # computes dE/dX for a given dE/dY (and update parameters if any)
     def backward_propagation(self, output_error, learning_rate):
         raise NotImplementedError
+
+class MaxPoolingLayer:
+    def __init__(self, input_shape, pool_size, stride):
+        self.input_shape = input_shape
+        self.pool_size = pool_size
+        self.stride = stride
+        self.output_shape = (int((input_shape[0] - pool_size) / stride + 1),
+                             int((input_shape[1] - pool_size) / stride + 1),
+                             input_shape[2])
+
+    def forward(self, input):
+        self.input = input
+        output = np.zeros(self.output_shape)
+
+        for z in range(self.input_shape[2]):
+            for y in range(0, self.input_shape[0] - self.pool_size + 1, self.stride):
+                for x in range(0, self.input_shape[1] - self.pool_size + 1, self.stride):
+                    output[y // self.stride, x // self.stride, z] = np.max(input[y:y + self.pool_size, x:x + self.pool_size, z])
+
+        return output
+
+    def backward(self, output_error, learning_rate):
+        input_error = np.zeros(self.input_shape)
+
+        for z in range(self.input_shape[2]):
+            for y in range(0, self.input_shape[0] - self.pool_size + 1, self.stride):
+                for x in range(0, self.input_shape[1] - self.pool_size + 1, self.stride):
+                    window = self.input[y:y + self.pool_size, x:x + self.pool_size, z]
+                    max_idx = np.unravel_index(window.argmax(), window.shape)
+                    input_error[y + max_idx[0], x + max_idx[1], z] = output_error[y // self.stride, x // self.stride, z]
+
+        return input_error
+
         
 class ConvLayer(Layer):
     # input_shape = (i,j,d)
@@ -179,7 +216,7 @@ def sse_prime(y_true, y_pred):
 
 # unlike the Medium article, I am not encapsulating this process in a separate class
 # I think it is nice just like this
-'''
+
 network = [
     FlattenLayer(input_shape=(28, 28)),
     FCLayer(28 * 28, 128),
@@ -187,8 +224,8 @@ network = [
     FCLayer(128, 10),
     SoftmaxLayer(10)
 ]
-'''
 
+'''
 network = [
     FlattenLayer(input_shape=(28, 28)),
     FCLayer(28 * 28, 60),
@@ -198,6 +235,22 @@ network = [
     FCLayer(40, 10),
     SoftmaxLayer(10)    
 ]
+
+
+network = [
+    ConvLayer(input_shape=(28, 28, 1), kernel_shape=(5, 5), layer_depth=6),
+    MaxPoolingLayer(input_shape=(24, 24, 6), pool_size=2, stride=2),
+    ConvLayer(input_shape=(12, 12, 6), kernel_shape=(5, 5), layer_depth=6),
+    MaxPoolingLayer(input_shape=(8, 8, 6), pool_size=2, stride=2),
+    FlattenLayer(input_shape=(4, 4, 6)),
+    FCLayer(4 * 4 * 6, 60),
+    ActivationLayer(relu, relu_prime),
+    FCLayer(60, 40),
+    ActivationLayer(relu, relu_prime),
+    FCLayer(40, 10),
+    SoftmaxLayer(10)    
+]
+'''
 
 epochs = 40
 learning_rate = 0.1
@@ -209,7 +262,7 @@ for epoch in range(epochs):
         # forward
         output = x
         for layer in network:
-            output = layer.forward(output)
+            output = layer.forward_propagation(output)
         
         # error (display purpose only)
         error += mse(y_true, output)
@@ -217,7 +270,7 @@ for epoch in range(epochs):
         # backward
         output_error = mse_prime(y_true, output)
         for layer in reversed(network):
-            output_error = layer.backward(output_error, learning_rate)
+            output_error = layer.backward_propagation(output_error, learning_rate)
     
     error /= len(x_train)
     print('%d/%d, error=%f' % (epoch + 1, epochs, error))
