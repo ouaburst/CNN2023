@@ -145,36 +145,30 @@ class FCLayer(Layer):
 
 # inherit from base class Layer
 # This convolutional layer is always with stride 1
+'''
 class ConvLayer(Layer):
-    def __init__(self, input_shape, filter_shape, num_filters, padding=0, stride=1,kernel_size):
+    # input_shape = (i,j,d)
+    # kernel_shape = (m,n)
+    # layer_depth = output_depth
+    def __init__(self, input_shape, kernel_shape, layer_depth):
         self.input_shape = input_shape
-        self.filter_shape = filter_shape
-        self.num_filters = num_filters
-        self.padding = padding
-        self.stride = stride
-        self.kernel_shape = (kernel_size, kernel_size)
+        self.input_depth = input_shape[2]
+        self.kernel_shape = kernel_shape
+        self.layer_depth = layer_depth
+        self.output_shape = (input_shape[0]-kernel_shape[0]+1, input_shape[1]-kernel_shape[1]+1, layer_depth)
+        self.weights = np.random.rand(kernel_shape[0], kernel_shape[1], self.input_depth, layer_depth) - 0.5
+        self.bias = np.random.rand(layer_depth) - 0.5
 
-        self.weights = np.random.randn(filter_shape[0], filter_shape[1], input_shape[2], num_filters)
-        self.bias = np.zeros(num_filters)
-
-        self.output_shape = (
-            (input_shape[0] + 2 * padding - filter_shape[0]) // stride + 1,
-            (input_shape[1] + 2 * padding - filter_shape[1]) // stride + 1,
-            num_filters
-        )
-
+    # returns output for a given input
+    def forward_propagation(self, input):
+        self.input = input
         self.output = np.zeros(self.output_shape)
 
-    def forward_propagation(self, input):
-        self.input = np.pad(input, ((self.padding, self.padding), (self.padding, self.padding), (0, 0)), 'constant')
-        for k in range(self.num_filters):
-            for d in range(self.input_shape[2]):
-                for i in range(self.output_shape[0]):
-                    for j in range(self.output_shape[1]):
-                        self.output[i, j, k] += np.sum(self.weights[:, :, d, k] * self.input[i*self.stride:i*self.stride+self.filter_shape[0], j*self.stride:j*self.stride+self.filter_shape[1], d])
-        self.output += self.bias[np.newaxis, np.newaxis, :]
-        return self.output
+        for k in range(self.layer_depth):
+            for d in range(self.input_depth):
+                self.output[:,:,k] += signal.correlate2d(self.input[:,:,d], self.weights[:,:,d,k], 'valid') + self.bias[k]
 
+        return self.output
 
     # computes dE/dW, dE/dB for a given output_error=dE/dY. Returns input_error=dE/dX.
     def backward_propagation(self, output_error, learning_rate):
@@ -191,7 +185,73 @@ class ConvLayer(Layer):
         self.weights -= learning_rate*dWeights
         self.bias -= learning_rate*dBias
         return in_error
+'''
 
+# -------------------------- ConvLayer ----------------------------
+
+import numpy as np
+
+# inherit from base class Layer
+# This convolutional layer is always with stride 1
+class ConvLayer(Layer):
+    # input_shape = (i,j,d)
+    # kernel_shape = (m,n)
+    # layer_depth = output_depth
+    def __init__(self, input_shape, kernel_shape, layer_depth, padding=0):
+        self.input_shape = input_shape
+        self.input_depth = input_shape[2]
+        self.kernel_shape = kernel_shape
+        self.layer_depth = layer_depth
+        self.padding = padding
+        self.output_shape = (input_shape[0] - kernel_shape[0] + 2 * padding + 1,
+                             input_shape[1] - kernel_shape[1] + 2 * padding + 1,
+                             layer_depth)
+        self.weights = np.random.rand(kernel_shape[0], kernel_shape[1], self.input_depth, layer_depth) - 0.5
+        self.bias = np.random.rand(layer_depth) - 0.5
+
+    def pad_input(self, input):
+        if self.padding > 0:
+            padded_input = np.pad(input, ((self.padding, self.padding),
+                                           (self.padding, self.padding),
+                                           (0, 0)), mode='constant', constant_values=0)
+        else:
+            padded_input = input
+        return padded_input
+
+    # returns output for a given input
+    def forward_propagation(self, input):
+        self.input = self.pad_input(input)
+        self.output = np.zeros(self.output_shape)
+
+        for k in range(self.layer_depth):
+            for d in range(self.input_depth):
+                self.output[:,:,k] += signal.correlate2d(self.input[:,:,d], self.weights[:,:,d,k], 'valid') + self.bias[k]
+
+        return self.output
+
+    # computes dE/dW, dE/dB for a given output_error=dE/dY. Returns input_error=dE/dX.
+    def backward_propagation(self, output_error, learning_rate):
+        if self.padding > 0:
+            padded_input = self.input
+        else:
+            padded_input = self.pad_input(self.input)
+        in_error = np.zeros(padded_input.shape)
+        dWeights = np.zeros((self.kernel_shape[0], self.kernel_shape[1], self.input_depth, self.layer_depth))
+        dBias = np.zeros(self.layer_depth)
+
+        for k in range(self.layer_depth):
+            for d in range(self.input_depth):
+                in_error[:,:,d] += signal.convolve2d(output_error[:,:,k], self.weights[:,:,d,k], 'full')
+                dWeights[:,:,d,k] = signal.correlate2d(padded_input[:,:,d], output_error[:,:,k], 'valid')
+            dBias[k] = self.layer_depth * np.sum(output_error[:,:,k])
+
+        self.weights -= learning_rate*dWeights
+        self.bias -= learning_rate*dBias
+
+        if self.padding > 0:
+            in_error = in_error[self.padding:-self.padding, self.padding:-self.padding, :]
+
+        return in_error
 
 # -------------------------- FlattenLayer ----------------------------
 
@@ -255,9 +315,6 @@ class MaxPoolingLayer(Layer):
         input_shape = input_data.shape
         output_shape = (input_shape[0] // self.stride, input_shape[1] // self.stride, input_shape[2])
 
-        #print("MaxPoolingLayer input shape:", input_shape)
-        #print("MaxPoolingLayer output shape:", output_shape)
-
         self.output = np.zeros(output_shape)
         for i in range(0, input_shape[0], self.stride):
             for j in range(0, input_shape[1], self.stride):
@@ -281,26 +338,39 @@ class MaxPoolingLayer(Layer):
 
 # ---------------------------------------------------
 
-# Network testing
 # Network
+'''
 net = Network()
-net.add(ConvLayer((28, 28, 1), (5, 5), 6, padding=2, kernel_size=3))  # input_shape=(28, 28, 1)   ;   output_shape=(28, 28, 6) (with padding)
-net.add(MaxPoolingLayer(pool_size=2, stride=2))       # input_shape=(28, 28, 6)   ;   output_shape=(14, 14, 6)
-net.add(ConvLayer((14, 14, 6), (5, 5), 16))           # input_shape=(14, 14, 6)   ;   output_shape=(10, 10, 16)
-net.add(MaxPoolingLayer(pool_size=2, stride=2))       # input_shape=(10, 10, 16)  ;   output_shape=(5, 5, 16)
-net.add(FlattenLayer())                               # input_shape=(5, 5, 16)    ;   output_shape=(1, 5*5*16)
-net.add(FCLayer(5 * 5 * 16, 120))                     # input_shape=(1, 5*5*16)   ;   output_shape=(1, 120)
+net.add(ConvLayer((28, 28, 1), (3, 3), 1))  # input_shape=(28, 28, 1)   ;   output_shape=(26, 26, 1) 
 net.add(ActivationLayer(tanh, tanh_prime))
-net.add(FCLayer(120, 84))                             # input_shape=(1, 120)      ;   output_shape=(1, 84)
+net.add(FlattenLayer())                     # input_shape=(26, 26, 1)   ;   output_shape=(1, 26*26*1)
+net.add(FCLayer(26*26*1, 100))              # input_shape=(1, 26*26*1)  ;   output_shape=(1, 100)
 net.add(ActivationLayer(tanh, tanh_prime))
-net.add(FCLayer(84, 10))                              # input_shape=(1, 84)       ;   output_shape=(1, 10)
+net.add(FCLayer(100, 10))                   # input_shape=(1, 100)      ;   output_shape=(1, 10)
 net.add(ActivationLayer(tanh, tanh_prime))
+'''
 
 '''
+# Network
+net = Network()
+net.add(ConvLayer((28, 28, 1), (5, 5), 6))  # input_shape=(28, 28, 1)   ;   output_shape=(24, 24, 6)
+net.add(MaxPoolingLayer())                 # input_shape=(24, 24, 6)   ;   output_shape=(12, 12, 6)
+net.add(ConvLayer((12, 12, 6), (5, 5), 6))  # input_shape=(12, 12, 6)   ;   output_shape=(8, 8, 6)
+net.add(MaxPoolingLayer())                 # input_shape=(8, 8, 6)     ;   output_shape=(4, 4, 6)
+net.add(FlattenLayer())                     # input_shape=(4, 4, 6)     ;   output_shape=(1, 4*4*6)
+net.add(FCLayer(4 * 4 * 6, 60))             # input_shape=(1, 4*4*6)    ;   output_shape=(1, 60)
+net.add(ActivationLayer(tanh, tanh_prime))
+net.add(FCLayer(60, 40))                    # input_shape=(1, 60)       ;   output_shape=(1, 40)
+net.add(ActivationLayer(tanh, tanh_prime))
+net.add(FCLayer(40, 10))                    # input_shape=(1, 40)       ;   output_shape=(1, 10)
+net.add(ActivationLayer(tanh, tanh_prime))
+'''
+
+
 # Network testing
 # Network
 net = Network()
-net.add(ConvLayer((28, 28, 1), (5, 5), 6))           # input_shape=(28, 28, 1)   ;   output_shape=(24, 24, 6)
+net.add(ConvLayer((28, 28, 1), (5, 5), 6, padding=2))           # input_shape=(28, 28, 1)   ;   output_shape=(24, 24, 6)
 net.add(MaxPoolingLayer(pool_size=2, stride=2))     # input_shape=(24, 24, 6)   ;   output_shape=(14, 14, 6)
 net.add(ConvLayer((14, 14, 6), (5, 5), 6))          # input_shape=(14, 14, 6)   ;   output_shape=(10, 10, 6)
 net.add(MaxPoolingLayer())                          # input_shape=(10, 10, 6)   ;   output_shape=(5, 5, 6)
@@ -311,24 +381,6 @@ net.add(FCLayer(60, 40))                            # input_shape=(1, 60)       
 net.add(ActivationLayer(tanh, tanh_prime))
 net.add(FCLayer(40, 10))                            # input_shape=(1, 40)       ;   output_shape=(1, 10)
 net.add(ActivationLayer(tanh, tanh_prime))
-'''
-
-'''
-# Network testing
-# Network
-net = Network()
-net.add(ConvLayer((28, 28, 1), (5, 5), 6))          # input_shape=(28, 28, 1)   ;   output_shape=(24, 24, 6)
-net.add(MaxPoolingLayer(pool_size=2, stride=2))     # input_shape=(24, 24, 6)   ;   output_shape=(12, 12, 6)
-net.add(ConvLayer((12, 12, 6), (5, 5), 6))          # input_shape=(12, 12, 6)   ;   output_shape=(8, 8, 6)
-net.add(MaxPoolingLayer())                          # input_shape=(8, 8, 6)     ;   output_shape=(4, 4, 6)
-net.add(FlattenLayer())                             # input_shape=(4, 4, 6)     ;   output_shape=(1, 4*4*6)
-net.add(FCLayer(4 * 4 * 6, 60))                     # input_shape=(1, 4*4*6)    ;   output_shape=(1, 60)
-net.add(ActivationLayer(tanh, tanh_prime))
-net.add(FCLayer(60, 40))                            # input_shape=(1, 60)       ;   output_shape=(1, 40)
-net.add(ActivationLayer(tanh, tanh_prime))
-net.add(FCLayer(40, 10))                            # input_shape=(1, 40)       ;   output_shape=(1, 10)
-net.add(ActivationLayer(tanh, tanh_prime))
-'''
 
 # train on 1000 samples
 # as we didn't implemented mini-batch GD, training will be pretty slow if we update at each iteration on 60000 samples...

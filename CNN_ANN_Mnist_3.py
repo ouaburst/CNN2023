@@ -145,21 +145,20 @@ class FCLayer(Layer):
 
 # inherit from base class Layer
 # This convolutional layer is always with stride 1
-class ConvLayer(Layer):
-    def __init__(self, input_shape, filter_shape, num_filters, padding=0, stride=1,kernel_size):
+class ConvLayer:
+    def __init__(self, input_shape, filter_shape, num_filters, padding=0, stride=1):
         self.input_shape = input_shape
         self.filter_shape = filter_shape
         self.num_filters = num_filters
         self.padding = padding
         self.stride = stride
-        self.kernel_shape = (kernel_size, kernel_size)
 
         self.weights = np.random.randn(filter_shape[0], filter_shape[1], input_shape[2], num_filters)
         self.bias = np.zeros(num_filters)
 
         self.output_shape = (
-            (input_shape[0] + 2 * padding - filter_shape[0]) // stride + 1,
-            (input_shape[1] + 2 * padding - filter_shape[1]) // stride + 1,
+            (input_shape[0] - filter_shape[0] + 2 * padding) // stride + 1,
+            (input_shape[1] - filter_shape[1] + 2 * padding) // stride + 1,
             num_filters
         )
 
@@ -169,29 +168,31 @@ class ConvLayer(Layer):
         self.input = np.pad(input, ((self.padding, self.padding), (self.padding, self.padding), (0, 0)), 'constant')
         for k in range(self.num_filters):
             for d in range(self.input_shape[2]):
-                for i in range(self.output_shape[0]):
-                    for j in range(self.output_shape[1]):
-                        self.output[i, j, k] += np.sum(self.weights[:, :, d, k] * self.input[i*self.stride:i*self.stride+self.filter_shape[0], j*self.stride:j*self.stride+self.filter_shape[1], d])
+                self.output[:, :, k] += signal.correlate2d(self.input[:, :, d], self.weights[:, :, d, k], 'valid')
         self.output += self.bias[np.newaxis, np.newaxis, :]
         return self.output
+
 
 
     # computes dE/dW, dE/dB for a given output_error=dE/dY. Returns input_error=dE/dX.
     def backward_propagation(self, output_error, learning_rate):
         in_error = np.zeros(self.input_shape)
-        dWeights = np.zeros((self.kernel_shape[0], self.kernel_shape[1], self.input_depth, self.layer_depth))
-        dBias = np.zeros(self.layer_depth)
+        #dWeights = np.zeros((self.kernel_shape[0], self.kernel_shape[1], self.input_depth, self.layer_depth))
+        dWeights = np.zeros((self.filter_shape[0], self.filter_shape[1], self.input_shape[2], self.num_filters))
+        #dBias = np.zeros(self.layer_depth)
+        dBias = np.zeros(self.num_filters)
 
-        for k in range(self.layer_depth):
-            for d in range(self.input_depth):
-                in_error[:,:,d] += signal.convolve2d(output_error[:,:,k], self.weights[:,:,d,k], 'full')
+        for k in range(self.num_filters):
+            for d in range(self.input_shape[2]):
+                conv_result = signal.convolve2d(output_error[:,:,k], self.weights[:,:,d,k], 'valid')
+                padded_result = np.pad(conv_result, ((3,4)), 'constant', constant_values=0)
+                in_error[:,:,d] += padded_result
                 dWeights[:,:,d,k] = signal.correlate2d(self.input[:,:,d], output_error[:,:,k], 'valid')
-            dBias[k] = self.layer_depth * np.sum(output_error[:,:,k])
+            dBias[k] = self.num_filters * np.sum(output_error[:,:,k])
 
         self.weights -= learning_rate*dWeights
         self.bias -= learning_rate*dBias
         return in_error
-
 
 # -------------------------- FlattenLayer ----------------------------
 
@@ -284,7 +285,7 @@ class MaxPoolingLayer(Layer):
 # Network testing
 # Network
 net = Network()
-net.add(ConvLayer((28, 28, 1), (5, 5), 6, padding=2, kernel_size=3))  # input_shape=(28, 28, 1)   ;   output_shape=(28, 28, 6) (with padding)
+net.add(ConvLayer((28, 28, 1), (5, 5), 6, padding=2))  # input_shape=(28, 28, 1)   ;   output_shape=(28, 28, 6) (with padding)
 net.add(MaxPoolingLayer(pool_size=2, stride=2))       # input_shape=(28, 28, 6)   ;   output_shape=(14, 14, 6)
 net.add(ConvLayer((14, 14, 6), (5, 5), 16))           # input_shape=(14, 14, 6)   ;   output_shape=(10, 10, 16)
 net.add(MaxPoolingLayer(pool_size=2, stride=2))       # input_shape=(10, 10, 16)  ;   output_shape=(5, 5, 16)
