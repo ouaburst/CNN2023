@@ -1,344 +1,245 @@
 # -*- coding: utf-8 -*-
 """
-Created on Wed Mar 29 10:05:28 2023
+Created on Wed Mar  10 22:44:27 2023
 
-@author: brobm
+@author: Oualid Burström
 """
 
 import numpy as np
-from scipy import signal
+import matplotlib.pyplot as plt
 import mnist
 
-# -------------------------- Import Mnist ----------------------------
+# Applies 2D convolution on an image using a kernel with specified stride, padding, and pooling
+# The input image can be 2D or 3D, and the kernel must be a 2D array
+# If padding is 'same', the function pads the input image to ensure that the output has the same spatial dimensions as the input
+# If pooling is 'max', the function applies max pooling with a specified pool size to the output of the convolution
+# Returns the output image as a 2D NumPy array
 
-# Load mnist dataset
-x_train = mnist.train_images()
-y_train = mnist.train_labels()
-x_test = mnist.test_images()
-y_test = mnist.test_labels()
+def conv2D(image, kernel, stride=(1, 1), padding='valid', pooling=None, pool_size=(2, 2)):
 
-# Set the number of training and test samples to be used
-num_train_samples = 10000  # Set the desired number of training samples
-num_test_samples = 2000    # Set the desired number of testing samples
+    # Check input dimensions
+    assert len(image.shape) in [2, 3], "Input image must be 2D or 3D array"
+    assert len(kernel.shape) == 2, "Kernel must be a 2D array"
+    assert isinstance(stride, tuple) and len(stride) == 2, "Stride must be a tuple of two integers"
+    if pooling:
+        assert pooling == 'max', "Pooling must be 'max'"
 
-# Reduce the number of training and test images
-x_train = x_train[:num_train_samples]
-y_train = y_train[:num_train_samples]
-x_test = x_test[:num_test_samples]
-y_test = y_test[:num_test_samples]
+    # Add padding if required
+    if padding == 'same':
+        pad_h = int(((image.shape[0]-1)*stride[0]+kernel.shape[0]-image.shape[0])/2)
+        pad_w = int(((image.shape[1]-1)*stride[1]+kernel.shape[1]-image.shape[1])/2)
+        image = np.pad(image, ((pad_h, pad_h), (pad_w, pad_w)), mode='constant')
+    elif padding != 'valid':
+        raise ValueError("Padding must be either 'valid' or 'same'")
 
-# Reshape the input data
-x_train = x_train.reshape(-1, 28, 28, 1)
-x_test = x_test.reshape(-1, 28, 28, 1)
+    # Compute output shape
+    out_h = int((image.shape[0]-kernel.shape[0])/stride[0] + 1)
+    out_w = int((image.shape[1]-kernel.shape[1])/stride[1] + 1)
+    output = np.zeros((out_h, out_w))
 
-# Normalize pixel values
-x_train = x_train.astype('float32') / 255.0
-x_test = x_test.astype('float32') / 255.0
+    # Perform convolution
+    for i in range(0, image.shape[0]-kernel.shape[0]+1, stride[0]):
+        for j in range(0, image.shape[1]-kernel.shape[1]+1, stride[1]):
+            output[int(i/stride[0]), int(j/stride[1])] = np.sum(image[i:i+kernel.shape[0], j:j+kernel.shape[1]] * kernel)
 
-# Convert labels to categorical format
-y_train = np.eye(10)[y_train.astype('int32')]
-y_test = np.eye(10)[y_test.astype('int32')]
+    # Apply pooling if required
+    if pooling:
+        pool_out_h = int(np.ceil(out_h / pool_size[0]))
+        pool_out_w = int(np.ceil(out_w / pool_size[1]))
+        pool_output = np.zeros((pool_out_h, pool_out_w))
+        for i in range(0, out_h, pool_size[0]):
+            for j in range(0, out_w, pool_size[1]):
+                pool_window = output[i:i+pool_size[0], j:j+pool_size[1]]
+                pool_output[int(i/pool_size[0]), int(j/pool_size[1])] = np.max(pool_window[:min(pool_size[0], pool_window.shape[0]), :min(pool_size[1], pool_window.shape[1])])
+    output = pool_output
 
-# -------------------------- Network ----------------------------
-
-class Network:
-    def __init__(self):
-        self.layers = []
-        self.loss = None
-        self.loss_prime = None
-
-    # add layer to network
-    def add(self, layer):
-        self.layers.append(layer)
-
-    # set loss to use
-    def use(self, loss, loss_prime):
-        self.loss = loss
-        self.loss_prime = loss_prime
-
-    # predict output for given input
-    def predict(self, input_data):
-        # sample dimension first
-        samples = len(input_data)
-        result = []
-
-        # run network over all samples
-        for i in range(samples):
-            # forward propagation
-            output = input_data[i]
-            for layer in self.layers:
-                output = layer.forward_propagation(output)
-            result.append(output)
-
-        return result
-
-    # train the network
-    def fit(self, x_train, y_train, epochs, learning_rate):
-        # sample dimension first
-        samples = len(x_train)
-
-        # training loop
-        for i in range(epochs):
-            err = 0
-            for j in range(samples):
-                # forward propagation
-                output = x_train[j]
-                for layer in self.layers:
-                    output = layer.forward_propagation(output)
-
-                # compute loss (for display purpose only)
-                err += self.loss(y_train[j], output)
-
-                # backward propagation
-                error = self.loss_prime(y_train[j], output)
-                for layer in reversed(self.layers):
-                    error = layer.backward_propagation(error, learning_rate)
-
-            # calculate average error on all samples
-            err /= samples
-            print('epoch %d/%d   error=%f' % (i+1, epochs, err))
-
-# -------------------------- FCLayer ----------------------------
-
-# Base class
-class Layer:
-    def __init__(self):
-        self.input = None
-        self.output = None
-
-    # computes the output Y of a layer for a given input X
-    def forward_propagation(self, input):
-        raise NotImplementedError
-
-    # computes dE/dX for a given dE/dY (and update parameters if any)
-    def backward_propagation(self, output_error, learning_rate):
-        raise NotImplementedError
-        
-# -------------------------- FCLayer ----------------------------
-
-# inherit from base class Layer
-class FCLayer(Layer):
-    # input_size = number of input neurons
-    # output_size = number of output neurons
-    def __init__(self, input_size, output_size):
-        self.weights = np.random.rand(input_size, output_size) - 0.5
-        self.bias = np.random.rand(1, output_size) - 0.5
-
-    # returns output for a given input
-    def forward_propagation(self, input_data):
-        self.input = input_data
-        self.output = np.dot(self.input, self.weights) + self.bias
-        return self.output
-
-    # computes dE/dW, dE/dB for a given output_error=dE/dY. Returns input_error=dE/dX.
-    def backward_propagation(self, output_error, learning_rate):
-        input_error = np.dot(output_error, self.weights.T)
-        weights_error = np.dot(self.input.T, output_error)
-        # dBias = output_error
-
-        # update parameters
-        self.weights -= learning_rate * weights_error
-        self.bias -= learning_rate * output_error
-        return input_error
-
-# -------------------------- ConvLayer ----------------------------
-
-# inherit from base class Layer
-# This convolutional layer is always with stride 1
-class ConvLayer(Layer):
-    def __init__(self, input_shape, filter_shape, num_filters, padding=0, stride=1,kernel_size):
-        self.input_shape = input_shape
-        self.filter_shape = filter_shape
-        self.num_filters = num_filters
-        self.padding = padding
-        self.stride = stride
-        self.kernel_shape = (kernel_size, kernel_size)
-
-        self.weights = np.random.randn(filter_shape[0], filter_shape[1], input_shape[2], num_filters)
-        self.bias = np.zeros(num_filters)
-
-        self.output_shape = (
-            (input_shape[0] + 2 * padding - filter_shape[0]) // stride + 1,
-            (input_shape[1] + 2 * padding - filter_shape[1]) // stride + 1,
-            num_filters
-        )
-
-        self.output = np.zeros(self.output_shape)
-
-    def forward_propagation(self, input):
-        self.input = np.pad(input, ((self.padding, self.padding), (self.padding, self.padding), (0, 0)), 'constant')
-        for k in range(self.num_filters):
-            for d in range(self.input_shape[2]):
-                for i in range(self.output_shape[0]):
-                    for j in range(self.output_shape[1]):
-                        self.output[i, j, k] += np.sum(self.weights[:, :, d, k] * self.input[i*self.stride:i*self.stride+self.filter_shape[0], j*self.stride:j*self.stride+self.filter_shape[1], d])
-        self.output += self.bias[np.newaxis, np.newaxis, :]
-        return self.output
+    return output
 
 
-    # computes dE/dW, dE/dB for a given output_error=dE/dY. Returns input_error=dE/dX.
-    def backward_propagation(self, output_error, learning_rate):
-        in_error = np.zeros(self.input_shape)
-        dWeights = np.zeros((self.kernel_shape[0], self.kernel_shape[1], self.input_depth, self.layer_depth))
-        dBias = np.zeros(self.layer_depth)
+# Define a convolutional neural network with two convolutional layers
+# Each convolutional layer has six filters and uses max pooling
+# The input image is convolved with six different 5x5 kernels in the first layer
+# The output of the second convolutional layer is flattened and returned
 
-        for k in range(self.layer_depth):
-            for d in range(self.input_depth):
-                in_error[:,:,d] += signal.convolve2d(output_error[:,:,k], self.weights[:,:,d,k], 'full')
-                dWeights[:,:,d,k] = signal.correlate2d(self.input[:,:,d], output_error[:,:,k], 'valid')
-            dBias[k] = self.layer_depth * np.sum(output_error[:,:,k])
+def conv_net(image):
+    # Define the kernel and filter size
+    kernel_size = (5, 5)
+    
+    # Create six different kernels
+    kernels = [np.clip(np.random.randn(*kernel_size),-0.5, 0.5) for _ in range(6)]  
 
-        self.weights -= learning_rate*dWeights
-        self.bias -= learning_rate*dBias
-        return in_error
+    # First convolutional layer with six filters
+    conv1 = [conv2D(image, kernel, stride=(1, 1), padding='valid', pooling='max', pool_size=(2, 2)) for kernel in kernels]
+    
+    # Second convolutional layer with six filters
+    conv2 = [conv2D(conv, kernel, stride=(1, 1), padding='valid', pooling='max', pool_size=(2, 2)) for kernel, conv in zip(kernels, conv1)]
 
+    # Flatten the output of the second convolutional layer and resize to (1x150)
+    flattened = np.concatenate(conv2).flatten()
+    resized = np.resize(flattened, (150,))  # Resize the flattened array to the desired shape
 
-# -------------------------- FlattenLayer ----------------------------
-
-# inherit from base class Layer
-class FlattenLayer(Layer):
-    # returns the flattened input
-    def forward_propagation(self, input_data):
-        self.input = input_data
-        self.output = input_data.flatten().reshape((1,-1))
-        return self.output
-
-    # Returns input_error=dE/dX for a given output_error=dE/dY.
-    # learning_rate is not used because there is no "learnable" parameters.
-    def backward_propagation(self, output_error, learning_rate):
-        return output_error.reshape(self.input.shape)
-
-# -------------------------- ActivationLayer ----------------------------
-
-# inherit from base class Layer
-class ActivationLayer(Layer):
-    def __init__(self, activation, activation_prime):
-        self.activation = activation
-        self.activation_prime = activation_prime
-
-    # returns the activated input
-    def forward_propagation(self, input_data):
-        self.input = input_data
-        self.output = self.activation(self.input)
-        return self.output
-
-    # Returns input_error=dE/dX for a given output_error=dE/dY.
-    # learning_rate is not used because there is no "learnable" parameters.
-    def backward_propagation(self, output_error, learning_rate):
-        return self.activation_prime(self.input) * output_error
-
-# ---------- Activation function and its derivative ---------------------
-
-def tanh(x):
-    return np.tanh(x)
-
-def tanh_prime(x):
-    return 1-np.tanh(x)**2
-
-# ---------- Loss function and its derivative ---------------------
-
-def mse(y_true, y_pred):
-    return np.mean(np.power(y_true-y_pred, 2))
-
-def mse_prime(y_true, y_pred):
-    return 2*(y_pred-y_true)/y_true.size
-
-# ---------- MaxPoolingLayer ---------------------
-
-class MaxPoolingLayer(Layer):
-    def __init__(self, pool_size=2, stride=2):
-        self.pool_size = pool_size
-        self.stride = stride
-
-    def forward_propagation(self, input_data):
-        self.input = input_data
-        input_shape = input_data.shape
-        output_shape = (input_shape[0] // self.stride, input_shape[1] // self.stride, input_shape[2])
-
-        #print("MaxPoolingLayer input shape:", input_shape)
-        #print("MaxPoolingLayer output shape:", output_shape)
-
-        self.output = np.zeros(output_shape)
-        for i in range(0, input_shape[0], self.stride):
-            for j in range(0, input_shape[1], self.stride):
-                self.output[i//self.stride, j//self.stride] = np.max(input_data[i:i+self.pool_size, j:j+self.pool_size], axis=(0, 1))
-
-        return self.output
-
-    def backward_propagation(self, output_error, learning_rate):
-        input_shape = self.input.shape
-        input_error = np.zeros(input_shape)
-
-        for i in range(0, input_shape[0], self.stride):
-            for j in range(0, input_shape[1], self.stride):
-                for k in range(input_shape[2]):
-                    patch = self.input[i:i+self.pool_size, j:j+self.pool_size, k]
-                    max_val_idx = np.unravel_index(np.argmax(patch, axis=None), patch.shape)
-                    input_error[i+max_val_idx[0], j+max_val_idx[1], k] = output_error[i//self.stride, j//self.stride, k]
-
-        return input_error
+    return resized
 
 
-# ---------------------------------------------------
+# Load the MNIST dataset
+train_images = mnist.train_images()
+train_labels = mnist.train_labels()
+test_images = mnist.test_images()
+test_labels = mnist.test_labels()
 
-# Network testing
-# Network
-net = Network()
-net.add(ConvLayer((28, 28, 1), (5, 5), 6, padding=2, kernel_size=3))  # input_shape=(28, 28, 1)   ;   output_shape=(28, 28, 6) (with padding)
-net.add(MaxPoolingLayer(pool_size=2, stride=2))       # input_shape=(28, 28, 6)   ;   output_shape=(14, 14, 6)
-net.add(ConvLayer((14, 14, 6), (5, 5), 16))           # input_shape=(14, 14, 6)   ;   output_shape=(10, 10, 16)
-net.add(MaxPoolingLayer(pool_size=2, stride=2))       # input_shape=(10, 10, 16)  ;   output_shape=(5, 5, 16)
-net.add(FlattenLayer())                               # input_shape=(5, 5, 16)    ;   output_shape=(1, 5*5*16)
-net.add(FCLayer(5 * 5 * 16, 120))                     # input_shape=(1, 5*5*16)   ;   output_shape=(1, 120)
-net.add(ActivationLayer(tanh, tanh_prime))
-net.add(FCLayer(120, 84))                             # input_shape=(1, 120)      ;   output_shape=(1, 84)
-net.add(ActivationLayer(tanh, tanh_prime))
-net.add(FCLayer(84, 10))                              # input_shape=(1, 84)       ;   output_shape=(1, 10)
-net.add(ActivationLayer(tanh, tanh_prime))
+train_images = train_images[:600]
+train_labels = train_labels[:600]
+test_images = test_images[:100]
+test_labels = test_labels[:100]
+
+# Flatten the input images
+train_images = train_images.reshape(-1, 784)
+test_images = test_images.reshape(-1, 784)
+
+# Preprocess the data
+train_images = train_images / 255.0
+test_images = test_images / 255.0
+
+# Define the network architecture
+input_size = 150  # New input size for the fully connected layers
+hidden_size1 = 60
+hidden_size2 = 40
+output_size = 10
+
+
+# Define the activation function (ReLU) and its derivative
+def relu(x):
+    return np.maximum(0, x)
+
+def relu_derivative(x):
+    return np.where(x > 0, 1, 0)
 
 '''
-# Network testing
-# Network
-net = Network()
-net.add(ConvLayer((28, 28, 1), (5, 5), 6))           # input_shape=(28, 28, 1)   ;   output_shape=(24, 24, 6)
-net.add(MaxPoolingLayer(pool_size=2, stride=2))     # input_shape=(24, 24, 6)   ;   output_shape=(14, 14, 6)
-net.add(ConvLayer((14, 14, 6), (5, 5), 6))          # input_shape=(14, 14, 6)   ;   output_shape=(10, 10, 6)
-net.add(MaxPoolingLayer())                          # input_shape=(10, 10, 6)   ;   output_shape=(5, 5, 6)
-net.add(FlattenLayer())                             # input_shape=(5, 5, 6)     ;   output_shape=(1, 5*5*6)
-net.add(FCLayer(5 * 5 * 6, 60))                     # input_shape=(1, 5*5*6)    ;   output_shape=(1, 60)
-net.add(ActivationLayer(tanh, tanh_prime))
-net.add(FCLayer(60, 40))                            # input_shape=(1, 60)       ;   output_shape=(1, 40)
-net.add(ActivationLayer(tanh, tanh_prime))
-net.add(FCLayer(40, 10))                            # input_shape=(1, 40)       ;   output_shape=(1, 10)
-net.add(ActivationLayer(tanh, tanh_prime))
+# Define the activation function (sigmoid) and its derivative
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
+
+def sigmoid_derivative(x):
+    return sigmoid(x) * (1 - sigmoid(x))
 '''
 
-'''
-# Network testing
-# Network
-net = Network()
-net.add(ConvLayer((28, 28, 1), (5, 5), 6))          # input_shape=(28, 28, 1)   ;   output_shape=(24, 24, 6)
-net.add(MaxPoolingLayer(pool_size=2, stride=2))     # input_shape=(24, 24, 6)   ;   output_shape=(12, 12, 6)
-net.add(ConvLayer((12, 12, 6), (5, 5), 6))          # input_shape=(12, 12, 6)   ;   output_shape=(8, 8, 6)
-net.add(MaxPoolingLayer())                          # input_shape=(8, 8, 6)     ;   output_shape=(4, 4, 6)
-net.add(FlattenLayer())                             # input_shape=(4, 4, 6)     ;   output_shape=(1, 4*4*6)
-net.add(FCLayer(4 * 4 * 6, 60))                     # input_shape=(1, 4*4*6)    ;   output_shape=(1, 60)
-net.add(ActivationLayer(tanh, tanh_prime))
-net.add(FCLayer(60, 40))                            # input_shape=(1, 60)       ;   output_shape=(1, 40)
-net.add(ActivationLayer(tanh, tanh_prime))
-net.add(FCLayer(40, 10))                            # input_shape=(1, 40)       ;   output_shape=(1, 10)
-net.add(ActivationLayer(tanh, tanh_prime))
-'''
+# Initialize the weights and biases randomly
+w1 = np.random.randn(input_size, hidden_size1)
+b1 = np.random.randn(hidden_size1)
+w2 = np.random.randn(hidden_size1, hidden_size2)
+b2 = np.random.randn(hidden_size2)
+w3 = np.random.randn(hidden_size2, output_size)
+b3 = np.random.randn(output_size)
 
-# train on 1000 samples
-# as we didn't implemented mini-batch GD, training will be pretty slow if we update at each iteration on 60000 samples...
-net.use(mse, mse_prime)
-net.fit(x_train[0:1000], y_train[0:1000], epochs=100, learning_rate=0.1)
+# Define the hyperparameters
+learning_rate = 0.1
+num_epochs = 50
 
-# test on 3 samples
-out = net.predict(x_test[0:3])
-print("\n")
-print("predicted values : ")
-print(out, end="\n")
-print("true values : ")
-print(y_test[0:3])
+# Initialize lists to store the loss and accuracy for each epoch
+train_loss = []
+train_accuracy = []
+
+epsilon = 1e-8
+
+# Trains a neural network with two layers (one hidden layer and one output layer)
+# Uses stochastic gradient descent with backpropagation to update the weights and biases
+# Computes the loss and accuracy for each epoch and appends them to lists for plotting
+# Prints the loss and accuracy every 10 epochs
+for epoch in range(num_epochs):
+    # Apply the convolutional network
+    conv_train_images = np.array([conv_net(img.reshape(28, 28)) for img in train_images])
+    conv_test_images = np.array([conv_net(img.reshape(28, 28)) for img in test_images])
+
+    # Forward pass
+    z1 = np.dot(conv_train_images, w1) + b1
+    a1 = relu(z1)
+    z2 = np.dot(a1, w2) + b2
+    a2 = relu(z2)
+    z3 = np.dot(a2, w3) + b3
+    z3_max = np.max(z3, axis=1, keepdims=True)
+    output = np.exp(z3 - z3_max) / np.sum(np.exp(z3 - z3_max), axis=1, keepdims=True)
+
+    # Compute the loss and accuracy
+    #loss = -np.sum(np.log(output[range(len(train_labels)), train_labels])) / len(train_labels)
+    loss = -np.sum(np.log(output[range(len(train_labels)), train_labels] + epsilon)) / len(train_labels)
+    predicted_labels = np.argmax(output, axis=1)
+    accuracy = np.mean(predicted_labels == train_labels)
+
+    # Backward pass
+    dz3 = output
+    dz3[range(len(train_labels)), train_labels] -= 1
+    dw3 = np.dot(a2.T, dz3) / len(train_labels)
+    db3 = np.sum(dz3, axis=0) / len(train_labels)
+    da2 = np.dot(dz3, w3.T)
+    dz2 = da2 * relu_derivative(z2)
+    dw2 = np.dot(a1.T, dz2) / len(train_labels)
+    db2 = np.sum(dz2, axis=0) / len(train_labels)
+    da1 = np.dot(dz2, w2.T)
+    dz1 = da1 * relu_derivative(z1)
+    dw1 = np.dot(conv_train_images.T, dz1) / len(train_labels)
+    db1 = np.sum(dz1, axis=0) / len(train_labels)
+    
+    # Update the weights and biases
+    w2 -= learning_rate * dw2
+    b2 -= learning_rate * db2
+    w1 -= learning_rate * dw1
+    b1 -= learning_rate * db1
+
+    # Append the loss and accuracy to the lists
+    train_loss.append(loss)
+    train_accuracy.append(accuracy)
+
+    # Print the loss and accuracy every 10 epochs
+    if epoch % 10 == 0:
+        print("Epoch {}/{} - loss: {:.4f} - accuracy: {:.4f}".format(epoch+1, num_epochs, loss, accuracy))
+
+# Evaluate the network on the test set
+z1 = np.dot(conv_test_images, w1) + b1
+a1 = relu(z1)
+z2 = np.dot(a1, w2) + b2
+output = np.exp(z2) / np.sum(np.exp(z2), axis=1, keepdims=True)
+predicted_labels = np.argmax(output, axis=1)
+accuracy = np.mean(predicted_labels == test_labels)
+print("Test accuracy: {:.4f}".format(accuracy))
+
+# Evaluate the network on the test set
+num_correct = 0
+for i in range(len(test_images)):
+    # Forward pass
+    #z1 = np.dot(test_images[i], w1) + b1
+    z1 = np.dot(conv_test_images[i], w1) + b1
+    a1 = relu(z1)
+    #a1 = sigmoid(z1)
+    z2 = np.dot(a1, w2) + b2
+    output = np.exp(z2) / np.sum(np.exp(z2))
+
+    # Compute the predicted label and check if it's correct
+    predicted_label = np.argmax(output)
+    true_label = test_labels[i]
+    if predicted_label == true_label:
+        num_correct += 1
+
+    # Print the predicted label and true label
+    print("Image {} - predicted label: {}, true label: {}".format(i+1, predicted_label, true_label))
+
+# Print the overall accuracy
+accuracy = num_correct / len(test_images)
+print("Test accuracy: {:.4f}".format(accuracy))
+
+# Plot the training loss
+plt.figure(figsize=(6, 4))
+plt.plot(train_loss)
+plt.xlabel("Epoch")
+plt.ylabel("Loss")
+plt.title("Training Loss")
+plt.show()
+
+# Plot the training accuracy
+plt.figure(figsize=(6, 4))
+plt.plot(train_accuracy)
+plt.xlabel("Epoch")
+plt.ylabel("Accuracy")
+plt.title("Training Accuracy")
+plt.show()
+
+
